@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Summary & Analytics</h2>
+
+<div class="mb-3">
+  <form method="get" action="{{ url_for('summary') }}">
+    <label for="currency">Select Currency:</label>
+    <select name="currency" id="currency" onchange="this.form.submit()">
+      <option value="USD" {% if currency == 'USD' %}selected{% endif %}>USD</option>
+      <option value="THB" {% if currency == 'THB' %}selected{% endif %}>THB</option>
+      <option value="SGD" {% if currency == 'SGD' %}selected{% endif %}>SGD</option>
+    </select>
+  </form>
+</div>
+
+<h3>Monthly Wealth Evolution (in {{ currency }})</h3>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Month</th>
+      <th>Total Asset Value</th>
+      <th>Cost Basis</th>
+      <th>Profit/Loss</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for data in monthly_data %}
+    <tr>
+      <td>{{ data.month }}</td>
+      <td>{{ data.asset_value | round(2) }}</td>
+      <td>{{ data.cost_basis | round(2) }}</td>
+      <td>{{ data.profit_loss | round(2) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<canvas id="wealthChart" width="400" height="200"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  var ctx = document.getElementById('wealthChart').getContext('2d');
+  var wealthChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+          labels: [{% for data in monthly_data %}'{{ data.month }}',{% endfor %}],
+          datasets: [{
+              label: 'Total Asset Value',
+              data: [{% for data in monthly_data %}{{ data.asset_value | round(2) }},{% endfor %}],
+              backgroundColor: 'rgba(54, 162, 235, 0.2)',
+              borderColor: 'rgba(54, 162, 235, 1)',
+              borderWidth: 1
+          }]
+      },
+      options: {
+          scales: {
+              y: {
+                  beginAtZero: true
+              }
+          }
+      }
+  });
+</script>
+
+<h3>Breakdown by Categories (in {{ currency }})</h3>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Total Asset Value</th>
+      <th>Cost Basis</th>
+      <th>Profit/Loss</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for category, data in category_data.items() %}
+    <tr>
+      <td>{{ category }}</td>
+      <td>{{ data.asset_value | round(2) }}</td>
+      <td>{{ data.cost_basis | round(2) }}</td>
+      <td>{{ data.profit_loss | round(2) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

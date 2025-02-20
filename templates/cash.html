@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Cash Account Management</h2>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Account Name</th>
+      <th>Currency</th>
+      <th>Balance</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for account in cash_accounts %}
+    <tr>
+      <td>{{ account.account_name }}</td>
+      <td>{{ account.currency }}</td>
+      <td>{{ account.balance }}</td>
+      <td>
+        <form method="post" style="display:inline;">
+          <input type="hidden" name="account_id" value="{{ account.id }}">
+          <input type="hidden" name="action" value="deposit">
+          <input type="number" step="0.01" name="amount" placeholder="Deposit Amount" required>
+          <button type="submit" class="btn btn-sm btn-success">Deposit</button>
+        </form>
+        <form method="post" style="display:inline;">
+          <input type="hidden" name="account_id" value="{{ account.id }}">
+          <input type="hidden" name="action" value="withdraw">
+          <input type="number" step="0.01" name="amount" placeholder="Withdrawal Amount" required>
+          <button type="submit" class="btn btn-sm btn-warning">Withdraw</button>
+        </form>
+        <form method="post" style="display:inline;">
+          <input type="hidden" name="account_id" value="{{ account.id }}">
+          <input type="hidden" name="action" value="convert">
+          <select name="target_currency" required>
+            <option value="USD">USD</option>
+            <option value="THB">THB</option>
+            <option value="SGD">SGD</option>
+          </select>
+          <button type="submit" class="btn btn-sm btn-info">Convert</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
