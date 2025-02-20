@@ -1,36 +1,113 @@
 {% extends 'base.html' %}
 {% block content %}
-<h2>Investment Positions Dashboard</h2>
-<table class="table table-striped">
-  <thead>
-    <tr>
-      <th>Symbol</th>
-      <th>Description</th>
-      <th>Asset Class</th>
-      <th>Total Equity</th>
-      <th>Cost Basis</th>
-      <th>Current Price</th>
-      <th>Total Value</th>
-      <th>Profit/Loss</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for inv in investments %}
-    <tr>
-      <td>{{ inv.symbol }}</td>
-      <td>{{ inv.description }}</td>
-      <td>{{ inv.asset_class }}</td>
-      <td>{{ inv.total_equity }} {{ inv.currency }}</td>
-      <td>{{ inv.cost_basis }} {{ inv.currency }}</td>
-      <td>{{ inv.current_price }} {{ inv.currency }}</td>
-      <td>{{ inv.total_value }} {{ inv.currency }}</td>
-      <td>{{ inv.profit_loss }} {{ inv.currency }}</td>
-      <td>
-        <a href="{{ url_for('edit_position', investment_id=inv.id) }}" class="btn btn-sm btn-primary">Edit</a>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<h2>Dashboard</h2>
+<div class="row mb-3">
+  <div class="col-md-12">
+    <h3>Net Worth: {{ net_worth }}</h3>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-12">
+    <h3>Investments</h3>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Description</th>
+          <th>Asset Class</th>
+          <th>Equity</th>
+          <th>Cost Basis</th>
+          <th>Current Price</th>
+          <th>Total Value</th>
+          <th>Profit/Loss</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in investments %}
+        <tr>
+          <td>{{ inv.symbol }}</td>
+          <td>{{ inv.description }}</td>
+          <td>{{ inv.asset_class }}</td>
+          <td>{{ inv.total_equity }} {{ inv.currency }}</td>
+          <td>{{ inv.cost_basis }} {{ inv.currency }}</td>
+          <td>{{ inv.current_price }} {{ inv.currency }}</td>
+          <td>{{ inv.total_value }} {{ inv.currency }}</td>
+          <td>{{ inv.profit_loss }} {{ inv.currency }}</td>
+          <td>
+            <!-- You can link to an edit page for investments if desired -->
+            <a href="#" class="btn btn-sm btn-secondary disabled">Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="row mt-4">
+  <div class="col-md-12">
+    <h3>Cash Accounts</h3>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Account Name</th>
+          <th>Currency</th>
+          <th>Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cash in cash_accounts %}
+        <tr>
+          <td>{{ cash.account_name }}</td>
+          <td>{{ cash.currency }}</td>
+          <td>{{ cash.balance }} {{ cash.currency }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="row mt-4">
+  <div class="col-md-12">
+    <h3>Bonds</h3>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Face Value</th>
+          <th>Coupon Rate</th>
+          <th>Maturity Date</th>
+          <th>Quantity</th>
+          <th>Cost Basis</th>
+          <th>Total Value</th>
+          <th>Yield to Maturity (%)</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for bond in bonds %}
+        <tr>
+          <td>{{ bond.name }}</td>
+          <td>{{ bond.face_value }}</td>
+          <td>{{ bond.coupon_rate }}%</td>
+          <td>{{ bond.maturity_date }}</td>
+          <td>{{ bond.quantity }}</td>
+          <td>{{ bond.cost_basis }}</td>
+          <td>{{ bond.total_value }}</td>
+          <td>{{ bond.yield_to_maturity|round(2) }}</td>
+          <td>
+            <a href="{{ url_for('edit_bond', bond_id=bond.id) }}" class="btn btn-sm btn-primary">Edit</a>
+            <form method="post" action="{{ url_for('delete_bond', bond_id=bond.id) }}" style="display:inline;">
+              <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}

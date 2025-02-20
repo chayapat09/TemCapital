@@ -2,7 +2,7 @@
 {% block content %}
 <h2>Transaction Management</h2>
 <form method="get" class="form-inline mb-3">
-  <input type="text" name="search" class="form-control mr-2" placeholder="Search by symbol or broker" value="{{ search }}">
+  <input type="text" name="search" class="form-control mr-2" placeholder="Search by symbol or note" value="{{ search }}">
   <button type="submit" class="btn btn-primary">Search</button>
 </form>
 <table class="table table-striped">
@@ -23,9 +23,9 @@
       <td>{{ t.date }}</td>
       <td>{% if t.investment %}{{ t.investment.symbol }}{% else %}N/A{% endif %}</td>
       <td>{{ t.transaction_type }}</td>
-      <td>{{ t.transaction_price }} {% if t.investment %}{{ t.investment.currency }}{% endif %}</td>
+      <td>{{ t.transaction_price }}</td>
       <td>{{ t.quantity }}</td>
-      <td>{{ t.broker_note if t.broker_note else '-' }}</td>
+      <td>{{ t.broker_note or '-' }}</td>
       <td>
         <a href="{{ url_for('edit_transaction', transaction_id=t.id) }}" class="btn btn-sm btn-primary">Edit</a>
         <form method="post" action="{{ url_for('delete_transaction', transaction_id=t.id) }}" style="display:inline;">

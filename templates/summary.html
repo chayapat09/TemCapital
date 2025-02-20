@@ -11,7 +11,6 @@
     </select>
   </form>
 </div>
-
 <h3>Monthly Wealth Evolution (in {{ currency }})</h3>
 <table class="table table-striped">
   <thead>
@@ -33,9 +32,7 @@
     {% endfor %}
   </tbody>
 </table>
-
 <canvas id="lineChart" width="400" height="200"></canvas>
-
 <h3>Breakdown by Asset Category (in {{ currency }})</h3>
 <table class="table table-striped">
   <thead>
@@ -57,9 +54,7 @@
     {% endfor %}
   </tbody>
 </table>
-
 <canvas id="pieChart" width="400" height="200"></canvas>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 // Line Chart for Monthly Wealth Evolution
@@ -85,7 +80,6 @@ var lineChart = new Chart(ctxLine, {
         }
     }
 });
-
 // Pie Chart for Asset Category Breakdown
 var ctxPie = document.getElementById('pieChart').getContext('2d');
 var pieData = {

@@ -63,3 +63,4 @@ TODO :
 - For prices , We will implament price feed that run with python code one code can output multiple price outputs. and each symbol can subscribe feeds.
 Historical Prices feed also mandatory
 - Quarterly Financial Statement from given data
+- Add Mobile support.

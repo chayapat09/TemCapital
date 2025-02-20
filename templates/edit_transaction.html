@@ -11,7 +11,7 @@
     <select name="investment_id" class="form-control">
       <option value="None">-- None --</option>
       {% for inv in investments %}
-      <option value="{{ inv.id }}" {% if transaction.investment and inv.id == transaction.investment.id %}selected{% endif %}>
+      <option value="{{ inv.id }}" {% if transaction.investment and transaction.investment.id == inv.id %}selected{% endif %}>
         {{ inv.symbol }} - {{ inv.description }} ({{ inv.asset_class }})
       </option>
       {% endfor %}
@@ -34,7 +34,7 @@
   </div>
   <div class="form-group">
     <label for="broker_note">Broker Note</label>
-    <input type="text" name="broker_note" class="form-control" value="{{ transaction.broker_note }}" placeholder="Enter broker note...">
+    <input type="text" name="broker_note" class="form-control" value="{{ transaction.broker_note }}">
   </div>
   <button type="submit" class="btn btn-primary">Update</button>
 </form>

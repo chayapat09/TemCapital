@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Cash Management</h2>
-<a href="{{ url_for('add_cash') }}" class="btn btn-success mb-3">Add New Cash Account</a>
+<a href="{{ url_for('add_cash') }}" class="btn btn-success mb-3">Add Cash Account</a>
 <table class="table table-striped">
   <thead>
     <tr>
@@ -48,10 +48,10 @@
     <tr>
       <td>{{ txn.date }}</td>
       <td>{{ txn.transaction_type }}</td>
-      <td>{% if txn.from_account_id %}{{ txn.from_account_id }}{% else %}-{% endif %}</td>
-      <td>{% if txn.to_account_id %}{{ txn.to_account_id }}{% else %}-{% endif %}</td>
+      <td>{{ txn.from_account_id or '-' }}</td>
+      <td>{{ txn.to_account_id or '-' }}</td>
       <td>{{ txn.amount }}</td>
-      <td>{{ txn.conversion_rate if txn.conversion_rate else '-' }}</td>
+      <td>{{ txn.conversion_rate or '-' }}</td>
     </tr>
     {% endfor %}
   </tbody>

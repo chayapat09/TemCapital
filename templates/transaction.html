@@ -12,11 +12,11 @@
   </div>
   <div id="new_investment_fields" style="display:none;">
     <div class="form-group">
-      <label for="new_symbol">Investment Ticker (Symbol)</label>
+      <label for="new_symbol">Investment Ticker</label>
       <input type="text" name="new_symbol" class="form-control">
     </div>
     <div class="form-group">
-      <label for="new_description">Investment Description</label>
+      <label for="new_description">Description</label>
       <input type="text" name="new_description" class="form-control">
     </div>
     <div class="form-group">
@@ -37,9 +37,13 @@
         <option value="SGD">SGD</option>
       </select>
     </div>
+    <div class="form-group">
+      <label for="new_wallet_address">Wallet Address (Crypto only)</label>
+      <input type="text" name="new_wallet_address" class="form-control">
+    </div>
   </div>
   <div class="form-group" id="existing_investment_group">
-    <label for="investment_id">Select Investment (if not adding new)</label>
+    <label for="investment_id">Select Investment (if not new)</label>
     <select name="investment_id" class="form-control">
       <option value="None">-- None --</option>
       {% for inv in investments %}
@@ -64,7 +68,7 @@
   </div>
   <div class="form-group">
     <label for="broker_note">Broker Note</label>
-    <input type="text" name="broker_note" class="form-control" placeholder="Enter broker note...">
+    <input type="text" name="broker_note" class="form-control">
   </div>
   <div class="form-group">
     <label for="cash_account_id">Cash Account</label>
