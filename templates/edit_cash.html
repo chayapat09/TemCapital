@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Edit Cash Account</h2>
+<form method="post">
+  <div class="form-group">
+    <label for="account_name">Account Name</label>
+    <input type="text" name="account_name" class="form-control" value="{{ cash_account.account_name }}" required>
+  </div>
+  <div class="form-group">
+    <label for="currency">Currency</label>
+    <select name="currency" class="form-control">
+      <option value="USD" {% if cash_account.currency=='USD' %}selected{% endif %}>USD</option>
+      <option value="THB" {% if cash_account.currency=='THB' %}selected{% endif %}>THB</option>
+      <option value="SGD" {% if cash_account.currency=='SGD' %}selected{% endif %}>SGD</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="balance">Balance</label>
+    <input type="number" step="0.01" name="balance" class="form-control" value="{{ cash_account.balance }}" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Update</button>
+</form>
+{% endblock %}

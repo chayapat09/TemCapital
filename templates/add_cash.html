@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Add Cash Account</h2>
+<form method="post">
+  <div class="form-group">
+    <label for="account_name">Account Name</label>
+    <input type="text" name="account_name" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="currency">Currency</label>
+    <select name="currency" class="form-control">
+      <option value="USD">USD</option>
+      <option value="THB">THB</option>
+      <option value="SGD">SGD</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="balance">Initial Balance</label>
+    <input type="number" step="0.01" name="balance" class="form-control" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Add</button>
+</form>
+{% endblock %}
