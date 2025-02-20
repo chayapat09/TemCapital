@@ -16,13 +16,42 @@
     <tr>
       <td>{{ account.account_name }}</td>
       <td>{{ account.currency }}</td>
-      <td>{{ account.balance }}</td>
+      <td>{{ account.balance }} {{ account.currency }}</td>
       <td>
         <a href="{{ url_for('edit_cash', cash_id=account.id) }}" class="btn btn-sm btn-primary">Edit</a>
+        <a href="{{ url_for('deposit_cash', cash_id=account.id) }}" class="btn btn-sm btn-info">Deposit</a>
+        <a href="{{ url_for('withdraw_cash', cash_id=account.id) }}" class="btn btn-sm btn-warning">Withdraw</a>
+        <a href="{{ url_for('convert_cash', from_id=account.id) }}" class="btn btn-sm btn-secondary">Convert</a>
         <form method="post" action="{{ url_for('delete_cash', cash_id=account.id) }}" style="display:inline;">
           <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
         </form>
       </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h3>Recent Cash Transactions</h3>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Type</th>
+      <th>From Account</th>
+      <th>To Account</th>
+      <th>Amount</th>
+      <th>Conversion Rate</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for txn in cash_transactions %}
+    <tr>
+      <td>{{ txn.date }}</td>
+      <td>{{ txn.transaction_type }}</td>
+      <td>{% if txn.from_account_id %}{{ txn.from_account_id }}{% else %}-{% endif %}</td>
+      <td>{% if txn.to_account_id %}{{ txn.to_account_id }}{% else %}-{% endif %}</td>
+      <td>{{ txn.amount }}</td>
+      <td>{{ txn.conversion_rate if txn.conversion_rate else '-' }}</td>
     </tr>
     {% endfor %}
   </tbody>

@@ -29,6 +29,14 @@
         <option value="Other">Other</option>
       </select>
     </div>
+    <div class="form-group">
+      <label for="new_currency">Currency</label>
+      <select name="new_currency" class="form-control">
+        <option value="USD">USD</option>
+        <option value="THB">THB</option>
+        <option value="SGD">SGD</option>
+      </select>
+    </div>
   </div>
   <div class="form-group" id="existing_investment_group">
     <label for="investment_id">Select Investment (if not adding new)</label>
@@ -53,6 +61,10 @@
   <div class="form-group">
     <label for="quantity">Quantity</label>
     <input type="number" step="0.01" name="quantity" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="broker_note">Broker Note</label>
+    <input type="text" name="broker_note" class="form-control" placeholder="Enter broker note...">
   </div>
   <div class="form-group">
     <label for="cash_account_id">Cash Account</label>

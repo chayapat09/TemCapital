@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Convert Cash from {{ from_account.account_name }} ({{ from_account.currency }})</h2>
+<form method="post">
+  <div class="form-group">
+    <label for="to_account_id">Select Target Cash Account</label>
+    <select name="to_account_id" class="form-control" required>
+      {% for acc in accounts %}
+      <option value="{{ acc.id }}">{{ acc.account_name }} ({{ acc.currency }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="amount">Amount to Convert ({{ from_account.currency }})</label>
+    <input type="number" step="0.01" name="amount" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="conversion_rate">Conversion Rate (1 {{ from_account.currency }} = ? Target Currency)</label>
+    <input type="number" step="0.0001" name="conversion_rate" class="form-control" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Convert</button>
+</form>
+{% endblock %}

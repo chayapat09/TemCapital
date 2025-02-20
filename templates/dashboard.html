@@ -21,12 +21,14 @@
       <td>{{ inv.symbol }}</td>
       <td>{{ inv.description }}</td>
       <td>{{ inv.asset_class }}</td>
-      <td>{{ inv.total_equity }}</td>
-      <td>{{ inv.cost_basis }}</td>
-      <td>{{ inv.current_price }}</td>
-      <td>{{ inv.total_value }}</td>
-      <td>{{ inv.profit_loss }}</td>
-      <td><a href="{{ url_for('edit_position', investment_id=inv.id) }}" class="btn btn-sm btn-primary">Edit</a></td>
+      <td>{{ inv.total_equity }} {{ inv.currency }}</td>
+      <td>{{ inv.cost_basis }} {{ inv.currency }}</td>
+      <td>{{ inv.current_price }} {{ inv.currency }}</td>
+      <td>{{ inv.total_value }} {{ inv.currency }}</td>
+      <td>{{ inv.profit_loss }} {{ inv.currency }}</td>
+      <td>
+        <a href="{{ url_for('edit_position', investment_id=inv.id) }}" class="btn btn-sm btn-primary">Edit</a>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

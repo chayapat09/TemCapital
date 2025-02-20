@@ -11,71 +11,100 @@
     </select>
   </form>
 </div>
+
 <h3>Monthly Wealth Evolution (in {{ currency }})</h3>
 <table class="table table-striped">
   <thead>
     <tr>
       <th>Month</th>
-      <th>Total Asset Value</th>
-      <th>Cost Basis</th>
-      <th>Profit/Loss</th>
+      <th>Total Asset Value ({{ currency }})</th>
+      <th>Cost Basis ({{ currency }})</th>
+      <th>Profit/Loss ({{ currency }})</th>
     </tr>
   </thead>
   <tbody>
     {% for data in monthly_data %}
     <tr>
       <td>{{ data.month }}</td>
-      <td>{{ data.asset_value | round(2) }}</td>
-      <td>{{ data.cost_basis | round(2) }}</td>
-      <td>{{ data.profit_loss | round(2) }}</td>
+      <td>{{ data.asset_value }}</td>
+      <td>{{ data.cost_basis }}</td>
+      <td>{{ data.profit_loss }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
-<canvas id="wealthChart" width="400" height="200"></canvas>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-  var ctx = document.getElementById('wealthChart').getContext('2d');
-  var wealthChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-          labels: [{% for data in monthly_data %}'{{ data.month }}',{% endfor %}],
-          datasets: [{
-              label: 'Total Asset Value',
-              data: [{% for data in monthly_data %}{{ data.asset_value | round(2) }},{% endfor %}],
-              backgroundColor: 'rgba(54, 162, 235, 0.2)',
-              borderColor: 'rgba(54, 162, 235, 1)',
-              borderWidth: 1
-          }]
-      },
-      options: {
-          scales: {
-              y: {
-                  beginAtZero: true
-              }
-          }
-      }
-  });
-</script>
-<h3>Breakdown by Categories (in {{ currency }})</h3>
+
+<canvas id="lineChart" width="400" height="200"></canvas>
+
+<h3>Breakdown by Asset Category (in {{ currency }})</h3>
 <table class="table table-striped">
   <thead>
     <tr>
       <th>Category</th>
-      <th>Total Asset Value</th>
-      <th>Cost Basis</th>
-      <th>Profit/Loss</th>
+      <th>Total Asset Value ({{ currency }})</th>
+      <th>Cost Basis ({{ currency }})</th>
+      <th>Profit/Loss ({{ currency }})</th>
     </tr>
   </thead>
   <tbody>
     {% for category, data in category_data.items() %}
     <tr>
       <td>{{ category }}</td>
-      <td>{{ data.asset_value | round(2) }}</td>
-      <td>{{ data.cost_basis | round(2) }}</td>
-      <td>{{ data.profit_loss | round(2) }}</td>
+      <td>{{ data.asset_value }}</td>
+      <td>{{ data.cost_basis }}</td>
+      <td>{{ data.profit_loss }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+
+<canvas id="pieChart" width="400" height="200"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Line Chart for Monthly Wealth Evolution
+var ctxLine = document.getElementById('lineChart').getContext('2d');
+var lineChart = new Chart(ctxLine, {
+    type: 'line',
+    data: {
+        labels: [{% for data in monthly_data %}'{{ data.month }}',{% endfor %}],
+        datasets: [{
+            label: 'Total Asset Value ({{ currency }})',
+            data: [{% for data in monthly_data %}{{ data.asset_value }},{% endfor %}],
+            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1,
+            fill: true
+        }]
+    },
+    options: {
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Pie Chart for Asset Category Breakdown
+var ctxPie = document.getElementById('pieChart').getContext('2d');
+var pieData = {
+    labels: [{% for category in category_data.keys() %}'{{ category }}',{% endfor %}],
+    datasets: [{
+        data: [{% for category, data in category_data.items() %}{{ data.asset_value }},{% endfor %}],
+        backgroundColor: [
+            'rgba(255, 99, 132, 0.6)',
+            'rgba(54, 162, 235, 0.6)',
+            'rgba(255, 206, 86, 0.6)',
+            'rgba(75, 192, 192, 0.6)',
+            'rgba(153, 102, 255, 0.6)'
+        ]
+    }]
+};
+var pieChart = new Chart(ctxPie, {
+    type: 'pie',
+    data: pieData,
+    options: {}
+});
+</script>
 {% endblock %}
