@@ -5,6 +5,7 @@
   <thead>
     <tr>
       <th>Symbol</th>
+      <th>Description</th>
       <th>Asset Class</th>
       <th>Total Equity</th>
       <th>Cost Basis</th>
@@ -18,6 +19,7 @@
     {% for inv in investments %}
     <tr>
       <td>{{ inv.symbol }}</td>
+      <td>{{ inv.description }}</td>
       <td>{{ inv.asset_class }}</td>
       <td>{{ inv.total_equity }}</td>
       <td>{{ inv.cost_basis }}</td>

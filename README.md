@@ -37,7 +37,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-The app will start on http://127.0.0.1:5000.
+The app will start on http://127.0.0.1:8080.
 
 ## Optional: Running via Provided Scripts
 For UNIX-like systems, you can run:
@@ -58,3 +58,7 @@ investment_tracker/
     └── summary.html
 
 ```
+
+
+For prices , We will implament price feed that run with python code one code can output multiple price outputs. and each symbol can subscribe feeds.
+Historical Prices feed also mandatory
