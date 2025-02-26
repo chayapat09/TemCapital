@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Add Dividend</h2>
+<form method="post">
+  <div class="form-group">
+    <label for="investment_id">Select Stock Investment</label>
+    <select name="investment_id" class="form-control" required>
+      {% for inv in investments %}
+      <option value="{{ inv.id }}">{{ inv.symbol }} - {{ inv.description }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="date">Dividend Date</label>
+    <input type="date" name="date" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="amount">Dividend Amount</label>
+    <input type="number" step="0.01" name="amount" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="note">Note</label>
+    <input type="text" name="note" class="form-control">
+  </div>
+  <button type="submit" class="btn btn-primary">Add Dividend</button>
+</form>
+{% endblock %}

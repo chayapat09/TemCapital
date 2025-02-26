@@ -4,3 +4,5 @@ APScheduler
 requests
 openai
 flask-login
+fastapi
+uvicorn

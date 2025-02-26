@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Add Bond</h2>
+<form method="post">
+  <div class="form-group">
+    <label for="name">Bond Name</label>
+    <input type="text" name="name" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="face_value">Face Value</label>
+    <input type="number" step="0.01" name="face_value" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="coupon_rate">Coupon Rate (%)</label>
+    <input type="number" step="0.01" name="coupon_rate" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="maturity_date">Maturity Date</label>
+    <input type="date" name="maturity_date" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="purchase_date">Purchase Date</label>
+    <input type="date" name="purchase_date" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="quantity">Quantity</label>
+    <input type="number" step="0.01" name="quantity" class="form-control" required>
+  </div>
+  <div class="form-group">
+    <label for="transaction_price">Transaction Price (Cost Basis)</label>
+    <input type="number" step="0.01" name="transaction_price" class="form-control" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Add Bond</button>
+</form>
+{% endblock %}
