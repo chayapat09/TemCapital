@@ -760,6 +760,338 @@ def risk():
     return render_template('risk.html', risk_data=risk_data)
 
 # -----------------------------
+# Helper Functions for Financial Statements
+# -----------------------------
+def get_period_range(period_type, period_value):
+    """
+    Returns start_date and end_date for the given period.
+    For yearly reports, period_value should be a year string (e.g. '2023').
+    For quarterly reports, period_value should be in the format '2023-Q1', '2023-Q2', etc.
+    """
+    from datetime import date
+    if period_type == 'yearly':
+        year = int(period_value)
+        start_date = date(year, 1, 1)
+        end_date = date(year, 12, 31)
+    elif period_type == 'quarterly':
+        try:
+            year_str, quarter_str = period_value.split('-Q')
+            year = int(year_str)
+            quarter = int(quarter_str)
+        except Exception:
+            # default to current quarter if parsing fails
+            today = date.today()
+            year = today.year
+            quarter = (today.month - 1) // 3 + 1
+        if quarter == 1:
+            start_date = date(year, 1, 1)
+            end_date = date(year, 3, 31)
+        elif quarter == 2:
+            start_date = date(year, 4, 1)
+            end_date = date(year, 6, 30)
+        elif quarter == 3:
+            start_date = date(year, 7, 1)
+            end_date = date(year, 9, 30)
+        elif quarter == 4:
+            start_date = date(year, 10, 1)
+            end_date = date(year, 12, 31)
+        else:
+            start_date = date.today()
+            end_date = date.today()
+    else:
+        start_date = date.today()
+        end_date = date.today()
+    return start_date, end_date
+
+def calculate_cash_balance_as_of(acc, end_date):
+    """
+    Calculate the balance for a cash account as of end_date by summing all related cash transactions.
+    """
+    balance = 0
+    # Fetch all transactions up to the end_date
+    transactions = CashTransaction.query.filter(CashTransaction.date <= end_date).all()
+    for txn in transactions:
+        if txn.transaction_type == 'deposit' and txn.to_account_id == acc.id:
+            balance += txn.amount
+        elif txn.transaction_type == 'withdraw' and txn.from_account_id == acc.id:
+            balance -= txn.amount
+        elif txn.transaction_type == 'investment_buy' and txn.from_account_id == acc.id:
+            balance -= txn.amount
+        elif txn.transaction_type == 'investment_sell' and txn.to_account_id == acc.id:
+            balance += txn.amount
+        elif txn.transaction_type == 'conversion':
+            if txn.from_account_id == acc.id:
+                balance -= txn.amount
+            if txn.to_account_id == acc.id and txn.conversion_rate:
+                balance += txn.amount * txn.conversion_rate
+    return balance
+
+# -----------------------------
+# Additional Helper Function
+# -----------------------------
+def get_periods(period_type):
+    """
+    Returns a list of tuples (label, start_date, end_date) for the requested period type.
+    For 'yearly', returns the past 5 years (including current year).
+    For 'quarterly', returns the four quarters for the current year.
+    """
+    periods = []
+    today = date.today()
+    if period_type == 'yearly':
+        current_year = today.year
+        start_year = current_year - 4  # last 5 years
+        for year in range(start_year, current_year + 1):
+            periods.append((str(year), date(year, 1, 1), date(year, 12, 31)))
+    elif period_type == 'quarterly':
+        current_year = today.year
+        quarters = [
+            ('Q1', date(current_year, 1, 1), date(current_year, 3, 31)),
+            ('Q2', date(current_year, 4, 1), date(current_year, 6, 30)),
+            ('Q3', date(current_year, 7, 1), date(current_year, 9, 30)),
+            ('Q4', date(current_year, 10, 1), date(current_year, 12, 31))
+        ]
+        for q, s, e in quarters:
+            periods.append((f"{current_year}-{q}", s, e))
+    return periods
+
+# -----------------------------
+# Balance Sheet Route (Updated)
+# -----------------------------
+@app.route('/financial_statement/balance_sheet')
+@login_required
+def balance_sheet():
+    period_type = request.args.get('period_type', 'yearly')
+    periods = get_periods(period_type)
+    period_labels = [label for (label, s, e) in periods]
+
+    cash_values = []
+    investment_values = []
+    bond_values = []
+    total_assets = []
+    liabilities_values = []  # Here liabilities are not tracked, so set to 0
+    equity_values = []
+
+    for label, start_date, end_date in periods:
+        # Calculate cash as of the period end
+        cash = sum(calculate_cash_balance_as_of(acc, end_date) for acc in CashAccount.query.all())
+
+        # Calculate investments by aggregating buy/sell transactions up to end_date.
+        inv_val = 0
+        for inv in Investment.query.all():
+            txns = [t for t in inv.transactions if t.date <= end_date]
+            shares = 0
+            avg = 0
+            for t in sorted(txns, key=lambda t: t.date):
+                if t.transaction_type.lower() == 'buy':
+                    if shares == 0:
+                        shares = t.quantity
+                        avg = t.transaction_price
+                    else:
+                        new_total = shares + t.quantity
+                        new_total_cost = avg * shares + t.transaction_price * t.quantity
+                        avg = new_total_cost / new_total
+                        shares = new_total
+                elif t.transaction_type.lower() == 'sell':
+                    shares -= t.quantity
+                    if shares <= 0:
+                        shares = 0
+                        avg = 0
+            price = get_price(inv.symbol)
+            asset_value = shares * price
+            inv_val += convert_currency(asset_value, inv.currency, 'USD')
+        
+        # Calculate bonds held (assuming bonds are valued as quantity * face_value)
+        bonds = Bond.query.filter(Bond.purchase_date <= end_date).all()
+        bond_val = sum(bond.quantity * bond.face_value for bond in bonds)
+        
+        total = cash + inv_val + bond_val
+        
+        cash_values.append(round(cash, 2))
+        investment_values.append(round(inv_val, 2))
+        bond_values.append(round(bond_val, 2))
+        total_assets.append(round(total, 2))
+        liabilities_values.append(0)
+        equity_values.append(round(total, 2))  # Since liabilities = 0
+    
+    return render_template('balance_sheet.html', period_type=period_type,
+                           period_labels=period_labels, cash_values=cash_values,
+                           investment_values=investment_values, bond_values=bond_values,
+                           total_assets=total_assets, liabilities_values=liabilities_values,
+                           equity_values=equity_values)
+
+# -----------------------------
+# Income Statement Route (Updated)
+# -----------------------------
+@app.route('/financial_statement/income_statement')
+@login_required
+def income_statement():
+    period_type = request.args.get('period_type', 'yearly')
+    periods = get_periods(period_type)
+    period_labels = [label for (label, s, e) in periods]
+
+    total_dividends_list = []
+    realized_gain_list = []
+    total_revenue_list = []
+    total_expenses_list = []
+    net_income_list = []
+
+    for label, start_date, end_date in periods:
+        dividends = Dividend.query.filter(Dividend.date >= start_date, Dividend.date <= end_date).all()
+        total_dividends = sum(d.amount for d in dividends)
+        realized_gain = 0  # Realized gains not calculated in this simplified example.
+        total_revenue = total_dividends + realized_gain
+        total_expenses = 0  # No expense tracking in this example.
+        net_income = total_revenue - total_expenses
+
+        total_dividends_list.append(round(total_dividends, 2))
+        realized_gain_list.append(round(realized_gain, 2))
+        total_revenue_list.append(round(total_revenue, 2))
+        total_expenses_list.append(round(total_expenses, 2))
+        net_income_list.append(round(net_income, 2))
+
+    return render_template('income_statement.html', period_type=period_type,
+                           period_labels=period_labels, total_dividends_list=total_dividends_list,
+                           realized_gain_list=realized_gain_list, total_revenue_list=total_revenue_list,
+                           total_expenses_list=total_expenses_list, net_income_list=net_income_list)
+
+# -----------------------------
+# Cash Flow Statement Route (Updated)
+# -----------------------------
+@app.route('/financial_statement/cash_flow')
+@login_required
+def cash_flow_statement():
+    period_type = request.args.get('period_type', 'yearly')
+    periods = get_periods(period_type)
+    period_labels = [label for (label, s, e) in periods]
+
+    operating_list = []
+    investing_list = []
+    net_cash_flow_list = []
+
+    for label, start_date, end_date in periods:
+        txns = CashTransaction.query.filter(CashTransaction.date >= start_date, CashTransaction.date <= end_date).all()
+        operating = 0
+        investing = 0
+        for txn in txns:
+            if txn.transaction_type in ['deposit', 'withdraw']:
+                if txn.transaction_type == 'deposit':
+                    operating += txn.amount
+                else:
+                    operating -= txn.amount
+            elif txn.transaction_type in ['investment_buy', 'investment_sell']:
+                if txn.transaction_type == 'investment_buy':
+                    investing -= txn.amount
+                else:
+                    investing += txn.amount
+        net_cash_flow = operating + investing
+        operating_list.append(round(operating, 2))
+        investing_list.append(round(investing, 2))
+        net_cash_flow_list.append(round(net_cash_flow, 2))
+
+    return render_template('cash_flow_statement.html', period_type=period_type,
+                           period_labels=period_labels, operating_list=operating_list,
+                           investing_list=investing_list, net_cash_flow_list=net_cash_flow_list)
+
+# -----------------------------
+# Financial Overview
+# -----------------------------
+@app.route('/financial_overview')
+@login_required
+def financial_overview():
+    period_type = request.args.get('period_type', 'yearly')
+    overview_data = []
+    if period_type == 'yearly':
+        current_year = date.today().year
+        for year in range(current_year - 5, current_year + 1):
+            comp_total_asset = 0
+            comp_total_cost = 0
+            for inv in Investment.query.all():
+                txns = [t for t in inv.transactions if t.date <= date(year, 12, 31)]
+                shares = 0
+                avg = 0
+                for t in sorted(txns, key=lambda t: t.date):
+                    if t.transaction_type.lower() == 'buy':
+                        if shares == 0:
+                            shares = t.quantity
+                            avg = t.transaction_price
+                        else:
+                            new_total = shares + t.quantity
+                            new_total_cost = avg * shares + t.transaction_price * t.quantity
+                            avg = new_total_cost / new_total
+                            shares = new_total
+                    elif t.transaction_type.lower() == 'sell':
+                        shares -= t.quantity
+                        if shares <= 0:
+                            shares = 0
+                            avg = 0
+                price = get_price(inv.symbol)
+                comp_total_asset += convert_currency(shares * price, inv.currency, 'USD')
+                comp_total_cost += convert_currency(shares * avg, inv.currency, 'USD')
+            profit_loss = comp_total_asset - comp_total_cost
+            overview_data.append({
+                'period': str(year),
+                'asset_value': round(comp_total_asset, 2),
+                'cost_basis': round(comp_total_cost, 2),
+                'profit_loss': round(profit_loss, 2)
+            })
+    elif period_type == 'quarterly':
+        current_year = date.today().year
+        quarters = ['Q1', 'Q2', 'Q3', 'Q4']
+        for q in quarters:
+            if q == 'Q1':
+                comp_end = date(current_year, 3, 31)
+            elif q == 'Q2':
+                comp_end = date(current_year, 6, 30)
+            elif q == 'Q3':
+                comp_end = date(current_year, 9, 30)
+            elif q == 'Q4':
+                comp_end = date(current_year, 12, 31)
+            comp_total_asset = 0
+            comp_total_cost = 0
+            for inv in Investment.query.all():
+                txns = [t for t in inv.transactions if t.date <= comp_end]
+                shares = 0
+                avg = 0
+                for t in sorted(txns, key=lambda t: t.date):
+                    if t.transaction_type.lower() == 'buy':
+                        if shares == 0:
+                            shares = t.quantity
+                            avg = t.transaction_price
+                        else:
+                            new_total = shares + t.quantity
+                            new_total_cost = avg * shares + t.transaction_price * t.quantity
+                            avg = new_total_cost / new_total
+                            shares = new_total
+                    elif t.transaction_type.lower() == 'sell':
+                        shares -= t.quantity
+                        if shares <= 0:
+                            shares = 0
+                            avg = 0
+                price = get_price(inv.symbol)
+                comp_total_asset += convert_currency(shares * price, inv.currency, 'USD')
+                comp_total_cost += convert_currency(shares * avg, inv.currency, 'USD')
+            profit_loss = comp_total_asset - comp_total_cost
+            overview_data.append({
+                'period': f"{current_year}-{q}",
+                'asset_value': round(comp_total_asset, 2),
+                'cost_basis': round(comp_total_cost, 2),
+                'profit_loss': round(profit_loss, 2)
+            })
+
+    labels = [d['period'] for d in overview_data]
+    asset_values = [d['asset_value'] for d in overview_data]
+    cost_basis_list = [d['cost_basis'] for d in overview_data]
+    profit_losses = [d['profit_loss'] for d in overview_data]
+    
+    return render_template('financial_overview.html',
+                           period_type=period_type,
+                           overview_data=overview_data,
+                           labels=labels,
+                           asset_values=asset_values,
+                           cost_basis_list=cost_basis_list,
+                           profit_losses=profit_losses)
+
+# -----------------------------
 # Database Initialization
 # -----------------------------
 def init_db():
@@ -772,4 +1104,4 @@ def init_db():
 if __name__ == '__main__':
     with app.app_context():
         init_db()
-    app.run(debug=True , port=8080)
+    app.run(debug=True, port=8080)
