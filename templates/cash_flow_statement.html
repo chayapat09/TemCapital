@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Cash Flow Statement{% endblock %}
+{% block content %}
+<h2>Cash Flow Statement ({{ period_type|capitalize }})</h2>
+<div class="mb-3">
+    <a href="{{ url_for('cash_flow_statement', period_type='yearly') }}" class="btn btn-primary">Yearly</a>
+    <a href="{{ url_for('cash_flow_statement', period_type='quarterly') }}" class="btn btn-secondary">Quarterly</a>
+</div>
+
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Metric</th>
+      {% for label in period_labels %}
+      <th>{{ label }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Operating Activities</td>
+      {% for value in operating_list %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td>Investing Activities</td>
+      {% for value in investing_list %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td>Net Cash Flow</td>
+      {% for value in net_cash_flow_list %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+  </tbody>
+</table>
+
+<!-- Optional Chart.js Visualization -->
+<canvas id="cashFlowChart" width="800" height="400"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  var ctx = document.getElementById('cashFlowChart').getContext('2d');
+  var cashFlowChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+          labels: {{ period_labels|tojson }},
+          datasets: [
+              {
+                  label: 'Operating Activities',
+                  data: {{ operating_list|tojson }},
+                  borderColor: 'rgba(75, 192, 192, 1)',
+                  fill: false
+              },
+              {
+                  label: 'Investing Activities',
+                  data: {{ investing_list|tojson }},
+                  borderColor: 'rgba(153, 102, 255, 1)',
+                  fill: false
+              },
+              {
+                  label: 'Net Cash Flow',
+                  data: {{ net_cash_flow_list|tojson }},
+                  borderColor: 'rgba(255, 99, 132, 1)',
+                  fill: false
+              }
+          ]
+      },
+      options: {
+          responsive: true,
+          title: {
+              display: true,
+              text: 'Cash Flow Trends'
+          },
+          scales: {
+              yAxes: [{
+                  ticks: {
+                      beginAtZero: true
+                  }
+              }]
+          }
+      }
+  });
+</script>
+{% endblock %}

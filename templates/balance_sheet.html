@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Balance Sheet{% endblock %}
+{% block content %}
+<h2>Balance Sheet ({{ period_type|capitalize }})</h2>
+<div class="mb-3">
+    <a href="{{ url_for('balance_sheet', period_type='yearly') }}" class="btn btn-primary">Yearly</a>
+    <a href="{{ url_for('balance_sheet', period_type='quarterly') }}" class="btn btn-secondary">Quarterly</a>
+</div>
+
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Category</th>
+      {% for label in period_labels %}
+      <th>{{ label }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Cash</td>
+      {% for value in cash_values %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td>Investments</td>
+      {% for value in investment_values %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td>Bonds</td>
+      {% for value in bond_values %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td>Total Assets</td>
+      {% for value in total_assets %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td>Liabilities</td>
+      {% for value in liabilities_values %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+    <tr>
+      <td>Equity</td>
+      {% for value in equity_values %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+  </tbody>
+</table>
+
+<!-- Optional Chart.js Visualization -->
+<canvas id="balanceSheetChart" width="800" height="400"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  var ctx = document.getElementById('balanceSheetChart').getContext('2d');
+  var balanceSheetChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+          labels: {{ period_labels|tojson }},
+          datasets: [
+              {
+                  label: 'Cash',
+                  data: {{ cash_values|tojson }},
+                  borderColor: 'rgba(75, 192, 192, 1)',
+                  fill: false
+              },
+              {
+                  label: 'Investments',
+                  data: {{ investment_values|tojson }},
+                  borderColor: 'rgba(153, 102, 255, 1)',
+                  fill: false
+              },
+              {
+                  label: 'Bonds',
+                  data: {{ bond_values|tojson }},
+                  borderColor: 'rgba(255, 159, 64, 1)',
+                  fill: false
+              },
+              {
+                  label: 'Total Assets',
+                  data: {{ total_assets|tojson }},
+                  borderColor: 'rgba(54, 162, 235, 1)',
+                  fill: false
+              }
+          ]
+      },
+      options: {
+          responsive: true,
+          title: {
+              display: true,
+              text: 'Balance Sheet Trends'
+          },
+          scales: {
+              yAxes: [{
+                  ticks: {
+                      beginAtZero: true
+                  }
+              }]
+          }
+      }
+  });
+</script>
+{% endblock %}

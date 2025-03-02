@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Financial Overview{% endblock %}
+{% block content %}
+<h2>Financial Overview - {{ period_type|capitalize }} View</h2>
+<div class="mb-3">
+  <a href="{{ url_for('financial_overview', period_type='yearly') }}" class="btn btn-primary">Yearly</a>
+  <a href="{{ url_for('financial_overview', period_type='quarterly') }}" class="btn btn-secondary">Quarterly</a>
+</div>
+
+<h3>Multi-Period Summary</h3>
+<table class="table table-bordered comparison-table">
+  <thead>
+    <tr>
+      <th>Period</th>
+      <th>Asset Value (USD)</th>
+      <th>Cost Basis (USD)</th>
+      <th>Profit / Loss (USD)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for data in overview_data %}
+    <tr>
+      <td>{{ data.period }}</td>
+      <td>{{ data.asset_value }}</td>
+      <td>{{ data.cost_basis }}</td>
+      <td>{{ data.profit_loss }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="row">
+  <div class="col-md-6">
+    <canvas id="overviewLineChart"></canvas>
+  </div>
+  <div class="col-md-6">
+    <canvas id="overviewBarChart"></canvas>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+var ctxLine = document.getElementById('overviewLineChart').getContext('2d');
+var overviewLineChart = new Chart(ctxLine, {
+    type: 'line',
+    data: {
+        labels: {{ labels|tojson }},
+        datasets: [{
+            label: 'Asset Value (USD)',
+            data: {{ asset_values|tojson }},
+            borderColor: 'rgba(75, 192, 192, 1)',
+            fill: false
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: { beginAtZero: true }
+        }
+    }
+});
+
+var ctxBar = document.getElementById('overviewBarChart').getContext('2d');
+var overviewBarChart = new Chart(ctxBar, {
+    type: 'bar',
+    data: {
+        labels: {{ labels|tojson }},
+        datasets: [
+            {
+                label: 'Cost Basis (USD)',
+                data: {{ cost_basis_list|tojson }},
+                backgroundColor: 'rgba(153, 102, 255, 0.6)'
+            },
+            {
+                label: 'Profit / Loss (USD)',
+                data: {{ profit_losses|tojson }},
+                backgroundColor: 'rgba(255, 99, 132, 0.6)'
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: { beginAtZero: true }
+        }
+    }
+});
+</script>
+{% endblock %}
