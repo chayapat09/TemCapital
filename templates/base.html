@@ -1,47 +1,70 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Investment Tracker{% endblock %}</title>
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
-    <style>
-      body {
-         font-family: 'Roboto', sans-serif;
-         background-color: #f8f9fa;
-      }
-      h2, h3 {
-         margin-top: 20px;
-         margin-bottom: 20px;
-         color: #343a40;
-      }
-      table {
-         background-color: #ffffff;
-         margin-bottom: 20px;
-      }
-      table th, table td {
-         padding: 10px;
-         text-align: center;
-         border: 1px solid #dee2e6;
-      }
-      .comparison-table {
-         margin-top: 30px;
-      }
-      .summary-card {
-         padding: 15px;
-         border: 1px solid #dee2e6;
-         border-radius: 5px;
-         background-color: #ffffff;
-         margin-bottom: 20px;
-         text-align: center;
-      }
-    </style>
+  <meta charset="UTF-8">
+  <!-- Mobile-friendly viewport settings -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <!-- iOS-specific meta tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+  <title>{% block title %}Investment Tracker{% endblock %}</title>
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+  <style>
+    body {
+       font-family: 'Roboto', sans-serif;
+       background-color: #f8f9fa;
+    }
+    h2, h3 {
+       margin-top: 20px;
+       margin-bottom: 20px;
+       color: #343a40;
+    }
+    table {
+       background-color: #ffffff;
+       margin-bottom: 20px;
+    }
+    table th, table td {
+       padding: 10px;
+       text-align: center;
+       border: 1px solid #dee2e6;
+    }
+    .comparison-table {
+       margin-top: 30px;
+    }
+    .summary-card {
+       padding: 15px;
+       border: 1px solid #dee2e6;
+       border-radius: 5px;
+       background-color: #ffffff;
+       margin-bottom: 20px;
+       text-align: center;
+    }
+    /* Additional tweaks for mobile devices */
+    @media (max-width: 576px) {
+       body {
+          font-size: 14px;
+       }
+       table th, table td {
+          padding: 5px;
+          font-size: 12px;
+       }
+       .navbar-brand {
+          font-size: 1.2rem;
+       }
+    }
+  </style>
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-light bg-light">
     <a class="navbar-brand" href="{{ url_for('dashboard') }}">Investment Tracker</a>
-    <div class="collapse navbar-collapse">
+    <!-- Navbar toggler for mobile -->
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav mr-auto">
         <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('transactions') }}">Transactions</a></li>
@@ -50,14 +73,14 @@
         <li class="nav-item"><a class="nav-link" href="{{ url_for('dividends') }}">Dividends</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('financial_overview') }}">Financial Overview</a></li>
         <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" id="financialStatementsDropdown" role="button" data-toggle="dropdown">
-                Financial Statements
-            </a>
-            <div class="dropdown-menu">
-                <a class="dropdown-item" href="{{ url_for('balance_sheet') }}">Balance Sheet</a>
-                <a class="dropdown-item" href="{{ url_for('income_statement') }}">Income Statement</a>
-                <a class="dropdown-item" href="{{ url_for('cash_flow_statement') }}">Cash Flow Statement</a>
-            </div>
+          <a class="nav-link dropdown-toggle" href="#" id="financialStatementsDropdown" role="button" data-toggle="dropdown">
+              Financial Statements
+          </a>
+          <div class="dropdown-menu">
+              <a class="dropdown-item" href="{{ url_for('balance_sheet') }}">Balance Sheet</a>
+              <a class="dropdown-item" href="{{ url_for('income_statement') }}">Income Statement</a>
+              <a class="dropdown-item" href="{{ url_for('cash_flow_statement') }}">Cash Flow Statement</a>
+          </div>
         </li>
       </ul>
       <ul class="navbar-nav">
@@ -83,6 +106,5 @@
   <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
-  </body>
-  </html>
-  
+</body>
+</html>

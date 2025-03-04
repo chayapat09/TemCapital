@@ -5,9 +5,9 @@
   <form method="get" action="{{ url_for('summary') }}">
     <label for="currency">Select Currency:</label>
     <select name="currency" id="currency" onchange="this.form.submit()">
-      <option value="USD" {% if currency == 'USD' %}selected{% endif %}>USD</option>
-      <option value="THB" {% if currency == 'THB' %}selected{% endif %}>THB</option>
-      <option value="SGD" {% if currency == 'SGD' %}selected{% endif %}>SGD</option>
+      <option value="USD" {% if session.get('summary_currency', 'USD') == 'USD' %}selected{% endif %}>USD</option>
+      <option value="THB" {% if session.get('summary_currency', 'USD') == 'THB' %}selected{% endif %}>THB</option>
+      <option value="SGD" {% if session.get('summary_currency', 'USD') == 'SGD' %}selected{% endif %}>SGD</option>
     </select>
   </form>
 </div>

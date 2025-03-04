@@ -2,10 +2,35 @@
 {% block title %}Financial Overview{% endblock %}
 {% block content %}
 <h2>Financial Overview - {{ period_type|capitalize }} View</h2>
-<div class="mb-3">
-  <a href="{{ url_for('financial_overview', period_type='yearly') }}" class="btn btn-primary">Yearly</a>
-  <a href="{{ url_for('financial_overview', period_type='quarterly') }}" class="btn btn-secondary">Quarterly</a>
-</div>
+{% if period_type == 'yearly' %}
+  <form method="get" action="{{ url_for('financial_overview') }}" class="form-inline mb-3">
+    <input type="hidden" name="period_type" value="yearly">
+    <label class="mr-2" for="start_year">Start Year:</label>
+    <select name="start_year" class="form-control mr-2">
+      {% for year in allowed_years %}
+        <option value="{{ year }}" {% if session.get('overview_start_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+      {% endfor %}
+    </select>
+    <label class="mr-2" for="end_year">End Year:</label>
+    <select name="end_year" class="form-control mr-2">
+      {% for year in allowed_years %}
+        <option value="{{ year }}" {% if session.get('overview_end_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">Update</button>
+  </form>
+{% elif period_type == 'quarterly' %}
+  <form method="get" action="{{ url_for('financial_overview') }}" class="form-inline mb-3">
+    <input type="hidden" name="period_type" value="quarterly">
+    <label class="mr-2" for="year">Select Year:</label>
+    <select name="year" class="form-control mr-2">
+      {% for year in allowed_years %}
+        <option value="{{ year }}" {% if session.get('overview_selected_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">Update</button>
+  </form>
+{% endif %}
 
 <h3>Multi-Period Summary</h3>
 <table class="table table-bordered comparison-table">

@@ -29,7 +29,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password , method='pbkdf2')
+        self.password_hash = generate_password_hash(password, method='pbkdf2')
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
@@ -166,6 +166,38 @@ def convert_currency(amount, from_currency, to_currency):
         return amount  # Fallback if conversion rate not found
 
 # -----------------------------
+# Recalculation Helper Function
+# -----------------------------
+def recalc_investment(investment):
+    """
+    Recalculate the total_equity and cost_basis for an investment based on all its transactions.
+    """
+    transactions = sorted(investment.transactions, key=lambda t: t.date)
+    shares = 0
+    avg = 0
+    for t in transactions:
+        if t.transaction_type.lower() == 'buy':
+            if shares == 0:
+                shares = t.quantity
+                avg = t.transaction_price
+            else:
+                new_total = shares + t.quantity
+                new_total_cost = avg * shares + t.transaction_price * t.quantity
+                avg = new_total_cost / new_total
+                shares = new_total
+        elif t.transaction_type.lower() == 'sell':
+            if shares >= t.quantity:
+                shares -= t.quantity
+                if shares == 0:
+                    avg = 0
+            else:
+                shares = 0
+                avg = 0
+    investment.total_equity = shares
+    investment.cost_basis = avg
+    investment.current_price = get_price(investment.symbol)
+
+# -----------------------------
 # Activity Logging Helper
 # -----------------------------
 def log_activity(action, details=""):
@@ -269,11 +301,24 @@ def transaction():
 
         transaction_date = request.form.get('date')
         transaction_type = request.form.get('transaction_type')
-        transaction_price = float(request.form.get('transaction_price'))
-        quantity = float(request.form.get('quantity'))
+        # Input Validation for numeric values
+        try:
+            transaction_price = float(request.form.get('transaction_price'))
+            quantity = float(request.form.get('quantity'))
+        except ValueError:
+            flash("Invalid numeric value in transaction price or quantity", "danger")
+            return redirect(url_for('transaction'))
+        if transaction_price < 0 or quantity < 0:
+            flash("Transaction price and quantity must be non-negative", "danger")
+            return redirect(url_for('transaction'))
+
         broker_note = request.form.get('broker_note')
         cash_account_id = request.form.get('cash_account_id')
-        date_obj = datetime.strptime(transaction_date, '%Y-%m-%d').date()
+        try:
+            date_obj = datetime.strptime(transaction_date, '%Y-%m-%d').date()
+        except ValueError:
+            flash("Invalid date format. Please use YYYY-MM-DD.", "danger")
+            return redirect(url_for('transaction'))
 
         if investment_id:
             inv = Investment.query.get(investment_id)
@@ -291,31 +336,13 @@ def transaction():
             broker_note=broker_note
         )
         db.session.add(new_txn)
+        db.session.flush()  # To assign an ID if needed
 
+        # Recalculate investment totals after new transaction
         if investment_id:
             inv = Investment.query.get(investment_id)
-            if transaction_type.lower() == 'buy':
-                # Update average cost basis on a buy transaction
-                if inv.total_equity == 0:
-                    inv.cost_basis = transaction_price
-                    inv.total_equity = quantity
-                else:
-                    new_total = inv.total_equity + quantity
-                    new_avg = (inv.cost_basis * inv.total_equity + transaction_price * quantity) / new_total
-                    inv.cost_basis = new_avg
-                    inv.total_equity = new_total
-                inv.current_price = get_price(inv.symbol)
-            elif transaction_type.lower() == 'sell':
-                if inv.total_equity >= quantity:
-                    if inv.total_equity == quantity:
-                        inv.total_equity = 0
-                        inv.cost_basis = 0
-                    else:
-                        inv.total_equity -= quantity
-                    inv.current_price = get_price(inv.symbol)
-                else:
-                    flash('Not enough equity to sell', 'danger')
-                    return redirect(url_for('transaction'))
+            recalc_investment(inv)
+
         if cash_account_id:
             cash_acc = CashAccount.query.get(int(cash_account_id))
             amount = transaction_price * quantity
@@ -358,15 +385,41 @@ def transactions():
 def edit_transaction(transaction_id):
     txn = Transaction.query.get_or_404(transaction_id)
     investments = Investment.query.all()
+    old_investment_id = txn.investment_id  # Store old investment reference
     if request.method == 'POST':
-        txn.date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+        try:
+            txn_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+        except ValueError:
+            flash("Invalid date format. Please use YYYY-MM-DD.", "danger")
+            return redirect(url_for('edit_transaction', transaction_id=transaction_id))
+        txn.date = txn_date
         txn.transaction_type = request.form.get('transaction_type')
-        txn.transaction_price = float(request.form.get('transaction_price'))
-        txn.quantity = float(request.form.get('quantity'))
+        try:
+            new_price = float(request.form.get('transaction_price'))
+            new_quantity = float(request.form.get('quantity'))
+        except ValueError:
+            flash("Invalid numeric value in transaction price or quantity", "danger")
+            return redirect(url_for('edit_transaction', transaction_id=transaction_id))
+        if new_price < 0 or new_quantity < 0:
+            flash("Transaction price and quantity must be non-negative", "danger")
+            return redirect(url_for('edit_transaction', transaction_id=transaction_id))
+        txn.transaction_price = new_price
+        txn.quantity = new_quantity
         txn.broker_note = request.form.get('broker_note')
         inv_id = request.form.get('investment_id')
         txn.investment_id = int(inv_id) if inv_id and inv_id != 'None' else None
         db.session.commit()
+
+        # Recalculate for both old and new investments if applicable
+        if old_investment_id:
+            old_inv = Investment.query.get(old_investment_id)
+            if old_inv:
+                recalc_investment(old_inv)
+        if txn.investment_id:
+            new_inv = Investment.query.get(txn.investment_id)
+            if new_inv:
+                recalc_investment(new_inv)
+
         log_activity("Transaction Edited", f"Transaction ID {transaction_id} edited.")
         flash('Transaction updated successfully!', 'success')
         return redirect(url_for('transactions'))
@@ -376,8 +429,14 @@ def edit_transaction(transaction_id):
 @login_required
 def delete_transaction(transaction_id):
     txn = Transaction.query.get_or_404(transaction_id)
+    investment_id = txn.investment_id
     db.session.delete(txn)
     db.session.commit()
+    # Recalculate investment totals after deletion
+    if investment_id:
+        inv = Investment.query.get(investment_id)
+        if inv:
+            recalc_investment(inv)
     log_activity("Transaction Deleted", f"Transaction ID {transaction_id} deleted.")
     flash('Transaction deleted successfully!', 'success')
     return redirect(url_for('transactions'))
@@ -398,7 +457,14 @@ def add_cash():
     if request.method == 'POST':
         account_name = request.form.get('account_name')
         currency = request.form.get('currency')
-        balance = float(request.form.get('balance'))
+        try:
+            balance = float(request.form.get('balance'))
+        except ValueError:
+            flash("Invalid balance value", "danger")
+            return redirect(url_for('add_cash'))
+        if balance < 0:
+            flash("Balance cannot be negative", "danger")
+            return redirect(url_for('add_cash'))
         new_acc = CashAccount(account_name=account_name, currency=currency, balance=balance)
         db.session.add(new_acc)
         db.session.commit()
@@ -423,7 +489,15 @@ def edit_cash(cash_id):
     if request.method == 'POST':
         acc.account_name = request.form.get('account_name')
         acc.currency = request.form.get('currency')
-        acc.balance = float(request.form.get('balance'))
+        try:
+            new_balance = float(request.form.get('balance'))
+        except ValueError:
+            flash("Invalid balance value", "danger")
+            return redirect(url_for('edit_cash', cash_id=cash_id))
+        if new_balance < 0:
+            flash("Balance cannot be negative", "danger")
+            return redirect(url_for('edit_cash', cash_id=cash_id))
+        acc.balance = new_balance
         db.session.commit()
         log_activity("Cash Account Edited", f"Cash account ID {cash_id} edited.")
         flash('Cash account updated successfully!', 'success')
@@ -445,7 +519,14 @@ def delete_cash(cash_id):
 def deposit_cash(cash_id):
     acc = CashAccount.query.get_or_404(cash_id)
     if request.method == 'POST':
-        amount = float(request.form.get('amount'))
+        try:
+            amount = float(request.form.get('amount'))
+        except ValueError:
+            flash("Invalid deposit amount", "danger")
+            return redirect(url_for('deposit_cash', cash_id=cash_id))
+        if amount < 0:
+            flash("Deposit amount must be non-negative", "danger")
+            return redirect(url_for('deposit_cash', cash_id=cash_id))
         acc.balance += amount
         ct = CashTransaction(
             date=datetime.utcnow().date(),
@@ -465,7 +546,14 @@ def deposit_cash(cash_id):
 def withdraw_cash(cash_id):
     acc = CashAccount.query.get_or_404(cash_id)
     if request.method == 'POST':
-        amount = float(request.form.get('amount'))
+        try:
+            amount = float(request.form.get('amount'))
+        except ValueError:
+            flash("Invalid withdrawal amount", "danger")
+            return redirect(url_for('withdraw_cash', cash_id=cash_id))
+        if amount < 0:
+            flash("Withdrawal amount must be non-negative", "danger")
+            return redirect(url_for('withdraw_cash', cash_id=cash_id))
         if acc.balance >= amount:
             acc.balance -= amount
             ct = CashTransaction(
@@ -489,9 +577,16 @@ def convert_cash(from_id):
     from_acc = CashAccount.query.get_or_404(from_id)
     accounts = CashAccount.query.filter(CashAccount.id != from_id).all()
     if request.method == 'POST':
-        to_id = int(request.form.get('to_account_id'))
-        amount = float(request.form.get('amount'))
-        conversion_rate = float(request.form.get('conversion_rate'))
+        try:
+            to_id = int(request.form.get('to_account_id'))
+            amount = float(request.form.get('amount'))
+            conversion_rate = float(request.form.get('conversion_rate'))
+        except ValueError:
+            flash("Invalid conversion parameters", "danger")
+            return redirect(url_for('convert_cash', from_id=from_id))
+        if amount < 0 or conversion_rate < 0:
+            flash("Amount and conversion rate must be non-negative", "danger")
+            return redirect(url_for('convert_cash', from_id=from_id))
         to_acc = CashAccount.query.get_or_404(to_id)
         if from_acc.balance < amount:
             flash('Insufficient funds in source account!', 'danger')
@@ -528,12 +623,23 @@ def bonds():
 def add_bond():
     if request.method == 'POST':
         name = request.form.get('name')
-        face_value = float(request.form.get('face_value'))
-        coupon_rate = float(request.form.get('coupon_rate'))
-        maturity_date = datetime.strptime(request.form.get('maturity_date'), '%Y-%m-%d').date()
-        purchase_date = datetime.strptime(request.form.get('purchase_date'), '%Y-%m-%d').date()
-        quantity = float(request.form.get('quantity'))
-        transaction_price = float(request.form.get('transaction_price'))
+        try:
+            face_value = float(request.form.get('face_value'))
+            coupon_rate = float(request.form.get('coupon_rate'))
+            quantity = float(request.form.get('quantity'))
+            transaction_price = float(request.form.get('transaction_price'))
+        except ValueError:
+            flash("Invalid numeric value for bond parameters", "danger")
+            return redirect(url_for('add_bond'))
+        if face_value < 0 or coupon_rate < 0 or quantity < 0 or transaction_price < 0:
+            flash("Bond parameters must be non-negative", "danger")
+            return redirect(url_for('add_bond'))
+        try:
+            maturity_date = datetime.strptime(request.form.get('maturity_date'), '%Y-%m-%d').date()
+            purchase_date = datetime.strptime(request.form.get('purchase_date'), '%Y-%m-%d').date()
+        except ValueError:
+            flash("Invalid date format. Please use YYYY-MM-DD.", "danger")
+            return redirect(url_for('add_bond'))
         bond = Bond(
             name=name,
             face_value=face_value,
@@ -556,12 +662,23 @@ def edit_bond(bond_id):
     bond = Bond.query.get_or_404(bond_id)
     if request.method == 'POST':
         bond.name = request.form.get('name')
-        bond.face_value = float(request.form.get('face_value'))
-        bond.coupon_rate = float(request.form.get('coupon_rate'))
-        bond.maturity_date = datetime.strptime(request.form.get('maturity_date'), '%Y-%m-%d').date()
-        bond.purchase_date = datetime.strptime(request.form.get('purchase_date'), '%Y-%m-%d').date()
-        bond.quantity = float(request.form.get('quantity'))
-        bond.cost_basis = float(request.form.get('transaction_price'))
+        try:
+            bond.face_value = float(request.form.get('face_value'))
+            bond.coupon_rate = float(request.form.get('coupon_rate'))
+            bond.quantity = float(request.form.get('quantity'))
+            bond.cost_basis = float(request.form.get('transaction_price'))
+        except ValueError:
+            flash("Invalid numeric value for bond parameters", "danger")
+            return redirect(url_for('edit_bond', bond_id=bond_id))
+        if bond.face_value < 0 or bond.coupon_rate < 0 or bond.quantity < 0 or bond.cost_basis < 0:
+            flash("Bond parameters must be non-negative", "danger")
+            return redirect(url_for('edit_bond', bond_id=bond_id))
+        try:
+            bond.maturity_date = datetime.strptime(request.form.get('maturity_date'), '%Y-%m-%d').date()
+            bond.purchase_date = datetime.strptime(request.form.get('purchase_date'), '%Y-%m-%d').date()
+        except ValueError:
+            flash("Invalid date format. Please use YYYY-MM-DD.", "danger")
+            return redirect(url_for('edit_bond', bond_id=bond_id))
         db.session.commit()
         log_activity("Bond Edited", f"Bond ID {bond_id} edited.")
         flash('Bond updated successfully!', 'success')
@@ -594,9 +711,20 @@ def dividends():
 def add_dividend():
     investments = Investment.query.filter(Investment.asset_class=='Stock').all()
     if request.method == 'POST':
-        investment_id = int(request.form.get('investment_id'))
-        date_div = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
-        amount = float(request.form.get('amount'))
+        try:
+            investment_id = int(request.form.get('investment_id'))
+            amount = float(request.form.get('amount'))
+        except ValueError:
+            flash("Invalid numeric value in dividend amount", "danger")
+            return redirect(url_for('add_dividend'))
+        if amount < 0:
+            flash("Dividend amount must be non-negative", "danger")
+            return redirect(url_for('add_dividend'))
+        try:
+            date_div = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+        except ValueError:
+            flash("Invalid date format. Please use YYYY-MM-DD.", "danger")
+            return redirect(url_for('add_dividend'))
         note = request.form.get('note')
         dividend = Dividend(investment_id=investment_id, date=date_div, amount=amount, note=note)
         db.session.add(dividend)
@@ -612,9 +740,20 @@ def edit_dividend(dividend_id):
     dividend = Dividend.query.get_or_404(dividend_id)
     investments = Investment.query.filter(Investment.asset_class=='Stock').all()
     if request.method == 'POST':
-        dividend.investment_id = int(request.form.get('investment_id'))
-        dividend.date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
-        dividend.amount = float(request.form.get('amount'))
+        try:
+            dividend.investment_id = int(request.form.get('investment_id'))
+            dividend.amount = float(request.form.get('amount'))
+        except ValueError:
+            flash("Invalid numeric value in dividend amount", "danger")
+            return redirect(url_for('edit_dividend', dividend_id=dividend_id))
+        if dividend.amount < 0:
+            flash("Dividend amount must be non-negative", "danger")
+            return redirect(url_for('edit_dividend', dividend_id=dividend_id))
+        try:
+            dividend.date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+        except ValueError:
+            flash("Invalid date format. Please use YYYY-MM-DD.", "danger")
+            return redirect(url_for('edit_dividend', dividend_id=dividend_id))
         dividend.note = request.form.get('note')
         db.session.commit()
         log_activity("Dividend Edited", f"Dividend ID {dividend_id} edited.")
@@ -832,35 +971,69 @@ def calculate_cash_balance_as_of(acc, end_date):
 def get_periods(period_type):
     """
     Returns a list of tuples (label, start_date, end_date) for the requested period type.
-    For 'yearly', returns the past 5 years (including current year).
-    For 'quarterly', returns the four quarters for the current year.
+    For 'yearly', reads 'start_year' and 'end_year' from query parameters (default to current year)
+    and enforces a maximum 5-year range. If the current year is included and not complete, marks as (YTD)
+    and uses today as the end date.
+    For 'quarterly', reads a selected year (default to current year) and returns its quarters,
+    skipping any future quarters. If a quarter is in progress, marks it as (YTD) and sets its end to today.
     """
     periods = []
     today = date.today()
     if period_type == 'yearly':
-        current_year = today.year
-        start_year = current_year - 4  # last 5 years
-        for year in range(start_year, current_year + 1):
-            periods.append((str(year), date(year, 1, 1), date(year, 12, 31)))
+        try:
+            start_year = int(request.args.get('start_year', today.year))
+            end_year = int(request.args.get('end_year', today.year))
+        except ValueError:
+            start_year = today.year
+            end_year = today.year
+        if start_year > end_year:
+            start_year, end_year = end_year, start_year
+        if end_year > today.year:
+            end_year = today.year
+        if end_year - start_year + 1 > 5:
+            end_year = start_year + 4
+        for year in range(start_year, end_year + 1):
+            s = date(year, 1, 1)
+            e = date(year, 12, 31)
+            label = str(year)
+            if year == today.year and today < e:
+                label += " (YTD)"
+                e = today
+            periods.append((label, s, e))
     elif period_type == 'quarterly':
-        current_year = today.year
+        try:
+            selected_year = int(request.args.get('year', today.year))
+        except ValueError:
+            selected_year = today.year
+        if selected_year > today.year:
+            selected_year = today.year
         quarters = [
-            ('Q1', date(current_year, 1, 1), date(current_year, 3, 31)),
-            ('Q2', date(current_year, 4, 1), date(current_year, 6, 30)),
-            ('Q3', date(current_year, 7, 1), date(current_year, 9, 30)),
-            ('Q4', date(current_year, 10, 1), date(current_year, 12, 31))
+            ('Q1', date(selected_year, 1, 1), date(selected_year, 3, 31)),
+            ('Q2', date(selected_year, 4, 1), date(selected_year, 6, 30)),
+            ('Q3', date(selected_year, 7, 1), date(selected_year, 9, 30)),
+            ('Q4', date(selected_year, 10, 1), date(selected_year, 12, 31))
         ]
         for q, s, e in quarters:
-            periods.append((f"{current_year}-{q}", s, e))
+            if s > today:
+                continue
+            label = f"{selected_year}-{q}"
+            if s <= today < e:
+                label += " (YTD)"
+                e = today
+            periods.append((label, s, e))
     return periods
 
 # -----------------------------
-# Balance Sheet Route (Updated)
+# Updated Financial Statement Routes
 # -----------------------------
+
 @app.route('/financial_statement/balance_sheet')
 @login_required
 def balance_sheet():
     period_type = request.args.get('period_type', 'yearly')
+    today = date.today()
+    # Allowed years for dropdown (only past/current years)
+    allowed_years = list(range(today.year - 10, today.year + 1))
     periods = get_periods(period_type)
     period_labels = [label for (label, s, e) in periods]
 
@@ -868,14 +1041,11 @@ def balance_sheet():
     investment_values = []
     bond_values = []
     total_assets = []
-    liabilities_values = []  # Here liabilities are not tracked, so set to 0
+    liabilities_values = []
     equity_values = []
 
     for label, start_date, end_date in periods:
-        # Calculate cash as of the period end
         cash = sum(calculate_cash_balance_as_of(acc, end_date) for acc in CashAccount.query.all())
-
-        # Calculate investments by aggregating buy/sell transactions up to end_date.
         inv_val = 0
         for inv in Investment.query.all():
             txns = [t for t in inv.transactions if t.date <= end_date]
@@ -900,10 +1070,8 @@ def balance_sheet():
             asset_value = shares * price
             inv_val += convert_currency(asset_value, inv.currency, 'USD')
         
-        # Calculate bonds held (assuming bonds are valued as quantity * face_value)
-        bonds = Bond.query.filter(Bond.purchase_date <= end_date).all()
-        bond_val = sum(bond.quantity * bond.face_value for bond in bonds)
-        
+        bonds_list = Bond.query.filter(Bond.purchase_date <= end_date).all()
+        bond_val = sum(bond.quantity * bond.face_value for bond in bonds_list)
         total = cash + inv_val + bond_val
         
         cash_values.append(round(cash, 2))
@@ -911,21 +1079,20 @@ def balance_sheet():
         bond_values.append(round(bond_val, 2))
         total_assets.append(round(total, 2))
         liabilities_values.append(0)
-        equity_values.append(round(total, 2))  # Since liabilities = 0
+        equity_values.append(round(total, 2))
     
     return render_template('balance_sheet.html', period_type=period_type,
                            period_labels=period_labels, cash_values=cash_values,
                            investment_values=investment_values, bond_values=bond_values,
                            total_assets=total_assets, liabilities_values=liabilities_values,
-                           equity_values=equity_values)
+                           equity_values=equity_values, allowed_years=allowed_years, today=today)
 
-# -----------------------------
-# Income Statement Route (Updated)
-# -----------------------------
 @app.route('/financial_statement/income_statement')
 @login_required
 def income_statement():
     period_type = request.args.get('period_type', 'yearly')
+    today = date.today()
+    allowed_years = list(range(today.year - 10, today.year + 1))
     periods = get_periods(period_type)
     period_labels = [label for (label, s, e) in periods]
 
@@ -938,9 +1105,9 @@ def income_statement():
     for label, start_date, end_date in periods:
         dividends = Dividend.query.filter(Dividend.date >= start_date, Dividend.date <= end_date).all()
         total_dividends = sum(d.amount for d in dividends)
-        realized_gain = 0  # Realized gains not calculated in this simplified example.
+        realized_gain = 0
         total_revenue = total_dividends + realized_gain
-        total_expenses = 0  # No expense tracking in this example.
+        total_expenses = 0
         net_income = total_revenue - total_expenses
 
         total_dividends_list.append(round(total_dividends, 2))
@@ -952,15 +1119,15 @@ def income_statement():
     return render_template('income_statement.html', period_type=period_type,
                            period_labels=period_labels, total_dividends_list=total_dividends_list,
                            realized_gain_list=realized_gain_list, total_revenue_list=total_revenue_list,
-                           total_expenses_list=total_expenses_list, net_income_list=net_income_list)
+                           total_expenses_list=total_expenses_list, net_income_list=net_income_list,
+                           allowed_years=allowed_years, today=today)
 
-# -----------------------------
-# Cash Flow Statement Route (Updated)
-# -----------------------------
 @app.route('/financial_statement/cash_flow')
 @login_required
 def cash_flow_statement():
     period_type = request.args.get('period_type', 'yearly')
+    today = date.today()
+    allowed_years = list(range(today.year - 10, today.year + 1))
     periods = get_periods(period_type)
     period_labels = [label for (label, s, e) in periods]
 
@@ -990,19 +1157,32 @@ def cash_flow_statement():
 
     return render_template('cash_flow_statement.html', period_type=period_type,
                            period_labels=period_labels, operating_list=operating_list,
-                           investing_list=investing_list, net_cash_flow_list=net_cash_flow_list)
+                           investing_list=investing_list, net_cash_flow_list=net_cash_flow_list,
+                           allowed_years=allowed_years, today=today)
 
-# -----------------------------
-# Financial Overview
-# -----------------------------
 @app.route('/financial_overview')
 @login_required
 def financial_overview():
     period_type = request.args.get('period_type', 'yearly')
+    today = date.today()
+    allowed_years = list(range(today.year - 10, today.year + 1))
     overview_data = []
     if period_type == 'yearly':
-        current_year = date.today().year
-        for year in range(current_year - 5, current_year + 1):
+        current_year = today.year
+        # Use query parameters for start and end years (with max 5-year range)
+        try:
+            start_year = int(request.args.get('start_year', current_year))
+            end_year = int(request.args.get('end_year', current_year))
+        except ValueError:
+            start_year = current_year
+            end_year = current_year
+        if start_year > end_year:
+            start_year, end_year = end_year, start_year
+        if end_year > current_year:
+            end_year = current_year
+        if end_year - start_year + 1 > 5:
+            end_year = start_year + 4
+        for year in range(start_year, end_year + 1):
             comp_total_asset = 0
             comp_total_cost = 0
             for inv in Investment.query.all():
@@ -1035,17 +1215,19 @@ def financial_overview():
                 'profit_loss': round(profit_loss, 2)
             })
     elif period_type == 'quarterly':
-        current_year = date.today().year
+        selected_year = int(request.args.get('year', today.year))
+        if selected_year > today.year:
+            selected_year = today.year
         quarters = ['Q1', 'Q2', 'Q3', 'Q4']
         for q in quarters:
             if q == 'Q1':
-                comp_end = date(current_year, 3, 31)
+                comp_end = date(selected_year, 3, 31)
             elif q == 'Q2':
-                comp_end = date(current_year, 6, 30)
+                comp_end = date(selected_year, 6, 30)
             elif q == 'Q3':
-                comp_end = date(current_year, 9, 30)
+                comp_end = date(selected_year, 9, 30)
             elif q == 'Q4':
-                comp_end = date(current_year, 12, 31)
+                comp_end = date(selected_year, 12, 31)
             comp_total_asset = 0
             comp_total_cost = 0
             for inv in Investment.query.all():
@@ -1072,7 +1254,7 @@ def financial_overview():
                 comp_total_cost += convert_currency(shares * avg, inv.currency, 'USD')
             profit_loss = comp_total_asset - comp_total_cost
             overview_data.append({
-                'period': f"{current_year}-{q}",
+                'period': f"{selected_year}-{q}",
                 'asset_value': round(comp_total_asset, 2),
                 'cost_basis': round(comp_total_cost, 2),
                 'profit_loss': round(profit_loss, 2)
@@ -1089,7 +1271,8 @@ def financial_overview():
                            labels=labels,
                            asset_values=asset_values,
                            cost_basis_list=cost_basis_list,
-                           profit_losses=profit_losses)
+                           profit_losses=profit_losses,
+                           allowed_years=allowed_years, today=today)
 
 # -----------------------------
 # Database Initialization

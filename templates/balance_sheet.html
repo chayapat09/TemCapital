@@ -2,10 +2,35 @@
 {% block title %}Balance Sheet{% endblock %}
 {% block content %}
 <h2>Balance Sheet ({{ period_type|capitalize }})</h2>
-<div class="mb-3">
-    <a href="{{ url_for('balance_sheet', period_type='yearly') }}" class="btn btn-primary">Yearly</a>
-    <a href="{{ url_for('balance_sheet', period_type='quarterly') }}" class="btn btn-secondary">Quarterly</a>
-</div>
+{% if period_type == 'yearly' %}
+  <form method="get" action="{{ url_for('balance_sheet') }}" class="form-inline mb-3">
+    <input type="hidden" name="period_type" value="yearly">
+    <label class="mr-2" for="start_year">Start Year:</label>
+    <select name="start_year" class="form-control mr-2">
+      {% for year in allowed_years %}
+        <option value="{{ year }}" {% if session.get('balance_sheet_start_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+      {% endfor %}
+    </select>
+    <label class="mr-2" for="end_year">End Year:</label>
+    <select name="end_year" class="form-control mr-2">
+      {% for year in allowed_years %}
+        <option value="{{ year }}" {% if session.get('balance_sheet_end_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">Update</button>
+  </form>
+{% elif period_type == 'quarterly' %}
+  <form method="get" action="{{ url_for('balance_sheet') }}" class="form-inline mb-3">
+    <input type="hidden" name="period_type" value="quarterly">
+    <label class="mr-2" for="year">Select Year:</label>
+    <select name="year" class="form-control mr-2">
+      {% for year in allowed_years %}
+        <option value="{{ year }}" {% if session.get('balance_sheet_selected_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">Update</button>
+  </form>
+{% endif %}
 
 <table class="table table-bordered">
   <thead>
@@ -56,7 +81,6 @@
   </tbody>
 </table>
 
-<!-- Optional Chart.js Visualization -->
 <canvas id="balanceSheetChart" width="800" height="400"></canvas>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
