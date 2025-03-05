@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Convert Cash from {{ from_account.account_name }} ({{ from_account.currency }})</h2>
-<form method="post">
+<form method="post" action="{{ url_for('cash.convert_cash', from_id=from_account.id) }}">
   <div class="form-group">
     <label for="to_account_id">Select Target Cash Account</label>
     <select name="to_account_id" class="form-control" required>

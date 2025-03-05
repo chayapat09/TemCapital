@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Dividends</h2>
-<a href="{{ url_for('add_dividend') }}" class="btn btn-success mb-3">Add New Dividend</a>
+<a href="{{ url_for('dividends.add_dividend') }}" class="btn btn-success mb-3">Add New Dividend</a>
 <table class="table table-striped">
   <thead>
     <tr>
@@ -26,8 +26,8 @@
       <td>{{ dividend.amount }}</td>
       <td>{{ dividend.note or '-' }}</td>
       <td>
-        <a href="{{ url_for('edit_dividend', dividend_id=dividend.id) }}" class="btn btn-sm btn-primary">Edit</a>
-        <form method="post" action="{{ url_for('delete_dividend', dividend_id=dividend.id) }}" style="display:inline;">
+        <a href="{{ url_for('dividends.edit_dividend', dividend_id=dividend.id) }}" class="btn btn-sm btn-primary">Edit</a>
+        <form method="post" action="{{ url_for('dividends.delete_dividend', dividend_id=dividend.id) }}" style="display:inline;">
           <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
         </form>
       </td>

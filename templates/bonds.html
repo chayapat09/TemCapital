@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Bonds</h2>
-<a href="{{ url_for('add_bond') }}" class="btn btn-success mb-3">Add Bond</a>
+<a href="{{ url_for('bonds.add_bond') }}" class="btn btn-success mb-3">Add Bond</a>
 <table class="table table-striped">
   <thead>
     <tr>
@@ -30,8 +30,8 @@
       <td>{{ bond.total_value }}</td>
       <td>{{ bond.yield_to_maturity|round(2) }}</td>
       <td>
-        <a href="{{ url_for('edit_bond', bond_id=bond.id) }}" class="btn btn-sm btn-primary">Edit</a>
-        <form method="post" action="{{ url_for('delete_bond', bond_id=bond.id) }}" style="display:inline;">
+        <a href="{{ url_for('bonds.edit_bond', bond_id=bond.id) }}" class="btn btn-sm btn-primary">Edit</a>
+        <form method="post" action="{{ url_for('bonds.delete_bond', bond_id=bond.id) }}" style="display:inline;">
           <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
         </form>
       </td>

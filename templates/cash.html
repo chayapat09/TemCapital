@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Cash Management</h2>
-<a href="{{ url_for('add_cash') }}" class="btn btn-success mb-3">Add Cash Account</a>
+<a href="{{ url_for('cash.add_cash') }}" class="btn btn-success mb-3">Add Cash Account</a>
 <table class="table table-striped">
   <thead>
     <tr>
@@ -18,11 +18,11 @@
       <td>{{ account.currency }}</td>
       <td>{{ account.balance }} {{ account.currency }}</td>
       <td>
-        <a href="{{ url_for('edit_cash', cash_id=account.id) }}" class="btn btn-sm btn-primary">Edit</a>
-        <a href="{{ url_for('deposit_cash', cash_id=account.id) }}" class="btn btn-sm btn-info">Deposit</a>
-        <a href="{{ url_for('withdraw_cash', cash_id=account.id) }}" class="btn btn-sm btn-warning">Withdraw</a>
-        <a href="{{ url_for('convert_cash', from_id=account.id) }}" class="btn btn-sm btn-secondary">Convert</a>
-        <form method="post" action="{{ url_for('delete_cash', cash_id=account.id) }}" style="display:inline;">
+        <a href="{{ url_for('cash.edit_cash', cash_id=account.id) }}" class="btn btn-sm btn-primary">Edit</a>
+        <a href="{{ url_for('cash.deposit_cash', cash_id=account.id) }}" class="btn btn-sm btn-info">Deposit</a>
+        <a href="{{ url_for('cash.withdraw_cash', cash_id=account.id) }}" class="btn btn-sm btn-warning">Withdraw</a>
+        <a href="{{ url_for('cash.convert_cash', from_id=account.id) }}" class="btn btn-sm btn-secondary">Convert</a>
+        <form method="post" action="{{ url_for('cash.delete_cash', cash_id=account.id) }}" style="display:inline;">
           <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
         </form>
       </td>

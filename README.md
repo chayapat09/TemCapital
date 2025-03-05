@@ -49,13 +49,48 @@ For Windows, double-click or run run.bat from the command prompt.
 ```
 investment_tracker/
 ├── app.py
-└── templates/
-    ├── base.html
-    ├── dashboard.html
-    ├── transaction.html
-    ├── cash.html
-    ├── edit_position.html
-    └── summary.html
+├── config.py
+├── models.py
+├── helpers.py
+├── blueprints/
+│   ├── __init__.py
+│   ├── auth.py
+│   ├── investments.py
+│   ├── cash.py
+│   ├── bonds.py
+│   ├── dividends.py
+│   ├── reports.py
+│   └── financials.py
+├── templates/
+│   ├── base.html
+│   ├── dashboard.html
+│   ├── login.html
+│   ├── register.html
+│   ├── transaction.html
+│   ├── edit_transaction.html
+│   ├── cash.html
+│   ├── add_cash.html
+│   ├── edit_cash.html
+│   ├── deposit_cash.html
+│   ├── withdraw_cash.html
+│   ├── convert_cash.html
+│   ├── bonds.html
+│   ├── add_bond.html
+│   ├── edit_bond.html
+│   ├── dividends.html
+│   ├── add_dividend.html
+│   ├── edit_dividend.html
+│   ├── summary.html
+│   ├── transactions.html
+│   ├── cash_flow_statement.html
+│   ├── risk.html
+│   ├── financial_overview.html
+│   ├── income_statement.html
+│   └── balance_sheet.html
+└── static/
+    ├── css/
+    ├── js/
+    └── images/
 
 ```
 

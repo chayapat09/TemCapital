@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Add Dividend</h2>
-<form method="post">
+<form method="post" action="{{ url_for('dividends.add_dividend') }}">
   <div class="form-group">
     <label for="investment_id">Select Stock Investment</label>
     <select name="investment_id" class="form-control" required>

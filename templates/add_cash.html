@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Add Cash Account</h2>
-<form method="post">
+<form method="post" action="{{ url_for('cash.add_cash') }}">
   <div class="form-group">
     <label for="account_name">Account Name</label>
     <input type="text" name="account_name" class="form-control" required>

@@ -58,7 +58,8 @@
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <a class="navbar-brand" href="{{ url_for('dashboard') }}">Investment Tracker</a>
+    <!-- Updated to use blueprint endpoint -->
+    <a class="navbar-brand" href="{{ url_for('investments.dashboard') }}">Investment Tracker</a>
     <!-- Navbar toggler for mobile -->
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
             aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
@@ -66,28 +67,28 @@
     </button>
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav mr-auto">
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('transactions') }}">Transactions</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('cash_list') }}">Cash</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('bonds') }}">Bonds</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('dividends') }}">Dividends</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('financial_overview') }}">Financial Overview</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('investments.dashboard') }}">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('investments.transactions') }}">Transactions</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('cash.cash_list') }}">Cash</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('bonds.bonds') }}">Bonds</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('dividends.dividends') }}">Dividends</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('financials.financial_overview') }}">Financial Overview</a></li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" id="financialStatementsDropdown" role="button" data-toggle="dropdown">
               Financial Statements
           </a>
           <div class="dropdown-menu">
-              <a class="dropdown-item" href="{{ url_for('balance_sheet') }}">Balance Sheet</a>
-              <a class="dropdown-item" href="{{ url_for('income_statement') }}">Income Statement</a>
-              <a class="dropdown-item" href="{{ url_for('cash_flow_statement') }}">Cash Flow Statement</a>
+              <a class="dropdown-item" href="{{ url_for('financials.balance_sheet') }}">Balance Sheet</a>
+              <a class="dropdown-item" href="{{ url_for('financials.income_statement') }}">Income Statement</a>
+              <a class="dropdown-item" href="{{ url_for('financials.cash_flow_statement') }}">Cash Flow Statement</a>
           </div>
         </li>
       </ul>
       <ul class="navbar-nav">
         {% if current_user.is_authenticated %}
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Logout</a></li>
         {% else %}
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Login</a></li>
         {% endif %}
       </ul>
     </div>
