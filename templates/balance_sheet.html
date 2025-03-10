@@ -1,37 +1,45 @@
 {% extends "base.html" %}
 {% block title %}Balance Sheet{% endblock %}
 {% block content %}
-<h2>Balance Sheet ({{ period_type|capitalize }})</h2>
+<h2>Balance Sheet (<span id="displayPeriodType">{{ period_type|capitalize }}</span>)</h2>
+
+<!-- Toggle Buttons for Period Type -->
+<div class="btn-group mb-3" role="group" aria-label="Period Type">
+  <button type="button" class="btn" id="btnYearly">Yearly</button>
+  <button type="button" class="btn" id="btnQuarterly">Quarterly</button>
+</div>
+
 {% if period_type == 'yearly' %}
   <form method="get" action="{{ url_for('financials.balance_sheet') }}" class="form-inline mb-3">
-    <input type="hidden" name="period_type" value="yearly">
+    <input type="hidden" name="period_type" id="periodTypeInput" value="yearly">
     <label class="mr-2" for="start_year">Start Year:</label>
-    <select name="start_year" class="form-control mr-2">
+    <select name="start_year" id="startYear" class="form-control mr-2">
       {% for year in allowed_years %}
-        <option value="{{ year }}" {% if session.get('balance_sheet_start_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+        <option value="{{ year }}">{{ year }}</option>
       {% endfor %}
     </select>
     <label class="mr-2" for="end_year">End Year:</label>
-    <select name="end_year" class="form-control mr-2">
+    <select name="end_year" id="endYear" class="form-control mr-2">
       {% for year in allowed_years %}
-        <option value="{{ year }}" {% if session.get('balance_sheet_end_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+        <option value="{{ year }}">{{ year }}</option>
       {% endfor %}
     </select>
     <button type="submit" class="btn btn-primary">Update</button>
   </form>
 {% elif period_type == 'quarterly' %}
   <form method="get" action="{{ url_for('financials.balance_sheet') }}" class="form-inline mb-3">
-    <input type="hidden" name="period_type" value="quarterly">
+    <input type="hidden" name="period_type" id="periodTypeInput" value="quarterly">
     <label class="mr-2" for="year">Select Year:</label>
-    <select name="year" class="form-control mr-2">
+    <select name="year" id="selectedYear" class="form-control mr-2">
       {% for year in allowed_years %}
-        <option value="{{ year }}" {% if session.get('balance_sheet_selected_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+        <option value="{{ year }}">{{ year }}</option>
       {% endfor %}
     </select>
     <button type="submit" class="btn btn-primary">Update</button>
   </form>
 {% endif %}
 
+<!-- Table displaying the balance sheet data -->
 <table class="table table-bordered">
   <thead>
     <tr>
@@ -83,53 +91,93 @@
 
 <canvas id="balanceSheetChart" width="800" height="400"></canvas>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-  var ctx = document.getElementById('balanceSheetChart').getContext('2d');
-  var balanceSheetChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-          labels: {{ period_labels|tojson }},
-          datasets: [
-              {
-                  label: 'Cash',
-                  data: {{ cash_values|tojson }},
-                  borderColor: 'rgba(75, 192, 192, 1)',
-                  fill: false
-              },
-              {
-                  label: 'Investments',
-                  data: {{ investment_values|tojson }},
-                  borderColor: 'rgba(153, 102, 255, 1)',
-                  fill: false
-              },
-              {
-                  label: 'Bonds',
-                  data: {{ bond_values|tojson }},
-                  borderColor: 'rgba(255, 159, 64, 1)',
-                  fill: false
-              },
-              {
-                  label: 'Total Assets',
-                  data: {{ total_assets|tojson }},
-                  borderColor: 'rgba(54, 162, 235, 1)',
-                  fill: false
-              }
-          ]
-      },
-      options: {
-          responsive: true,
-          title: {
-              display: true,
-              text: 'Balance Sheet Trends'
-          },
-          scales: {
-              yAxes: [{
-                  ticks: {
-                      beginAtZero: true
-                  }
-              }]
-          }
-      }
-  });
+document.addEventListener('DOMContentLoaded', function(){
+    // Retrieve saved period type from localStorage or use the server-provided value
+    var savedPeriodType = localStorage.getItem('financial_period_type') || '{{ period_type }}';
+    setActivePeriodType(savedPeriodType);
+
+    // Set select values if they exist (using saved values or defaulting to current year)
+    if(savedPeriodType === 'yearly'){
+        var savedStartYear = localStorage.getItem('financial_start_year') || '{{ today.year }}';
+        var savedEndYear = localStorage.getItem('financial_end_year') || '{{ today.year }}';
+        if(document.getElementById('startYear')) {
+            document.getElementById('startYear').value = savedStartYear;
+        }
+        if(document.getElementById('endYear')) {
+            document.getElementById('endYear').value = savedEndYear;
+        }
+    } else if(savedPeriodType === 'quarterly'){
+        var savedSelectedYear = localStorage.getItem('financial_selected_year') || '{{ today.year }}';
+        if(document.getElementById('selectedYear')) {
+            document.getElementById('selectedYear').value = savedSelectedYear;
+        }
+    }
+
+    // Attach event listeners to toggle buttons
+    document.getElementById('btnYearly').addEventListener('click', function(){
+        localStorage.setItem('financial_period_type', 'yearly');
+        updatePeriodType('yearly');
+    });
+    document.getElementById('btnQuarterly').addEventListener('click', function(){
+        localStorage.setItem('financial_period_type', 'quarterly');
+        updatePeriodType('quarterly');
+    });
+
+    // Save select changes to localStorage
+    var startYearSelect = document.getElementById('startYear');
+    if(startYearSelect){
+        startYearSelect.addEventListener('change', function(){
+            localStorage.setItem('financial_start_year', this.value);
+        });
+    }
+    var endYearSelect = document.getElementById('endYear');
+    if(endYearSelect){
+        endYearSelect.addEventListener('change', function(){
+            localStorage.setItem('financial_end_year', this.value);
+        });
+    }
+    var selectedYearSelect = document.getElementById('selectedYear');
+    if(selectedYearSelect){
+        selectedYearSelect.addEventListener('change', function(){
+            localStorage.setItem('financial_selected_year', this.value);
+        });
+    }
+});
+
+function updatePeriodType(type) {
+    // Update the hidden input and refresh the page with the new period_type query parameter
+    if(document.getElementById('periodTypeInput')) {
+        document.getElementById('periodTypeInput').value = type;
+    }
+    var newUrl = updateQueryStringParameter(window.location.href, 'period_type', type);
+    window.location.href = newUrl;
+}
+
+function setActivePeriodType(type) {
+    if(type === 'yearly'){
+        document.getElementById('btnYearly').classList.add('btn-primary');
+        document.getElementById('btnYearly').classList.remove('btn-secondary');
+        document.getElementById('btnQuarterly').classList.add('btn-secondary');
+        document.getElementById('btnQuarterly').classList.remove('btn-primary');
+    } else {
+        document.getElementById('btnQuarterly').classList.add('btn-primary');
+        document.getElementById('btnQuarterly').classList.remove('btn-secondary');
+        document.getElementById('btnYearly').classList.add('btn-secondary');
+        document.getElementById('btnYearly').classList.remove('btn-primary');
+    }
+    document.getElementById('displayPeriodType').innerText = type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function updateQueryStringParameter(uri, key, value) {
+    var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
+    var separator = uri.indexOf('?') !== -1 ? "&" : "?";
+    if(uri.match(re)){
+        return uri.replace(re, '$1' + key + "=" + value + '$2');
+    } else {
+        return uri + separator + key + "=" + value;
+    }
+}
 </script>
 {% endblock %}

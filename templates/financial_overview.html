@@ -1,31 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Financial Overview{% endblock %}
 {% block content %}
-<h2>Financial Overview - {{ period_type|capitalize }} View</h2>
+<h2>Financial Overview - <span id="displayPeriodType">{{ period_type|capitalize }}</span> View</h2>
+
+<!-- Toggle for Period Type -->
+<div class="btn-group mb-3" role="group" aria-label="Period Type">
+  <button type="button" class="btn" id="btnYearly">Yearly</button>
+  <button type="button" class="btn" id="btnQuarterly">Quarterly</button>
+</div>
+
 {% if period_type == 'yearly' %}
   <form method="get" action="{{ url_for('financials.financial_overview') }}" class="form-inline mb-3">
-    <input type="hidden" name="period_type" value="yearly">
+    <input type="hidden" name="period_type" id="periodTypeInput" value="yearly">
     <label class="mr-2" for="start_year">Start Year:</label>
-    <select name="start_year" class="form-control mr-2">
+    <select name="start_year" id="startYear" class="form-control mr-2">
       {% for year in allowed_years %}
-        <option value="{{ year }}" {% if session.get('overview_start_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+        <option value="{{ year }}">{{ year }}</option>
       {% endfor %}
     </select>
     <label class="mr-2" for="end_year">End Year:</label>
-    <select name="end_year" class="form-control mr-2">
+    <select name="end_year" id="endYear" class="form-control mr-2">
       {% for year in allowed_years %}
-        <option value="{{ year }}" {% if session.get('overview_end_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+        <option value="{{ year }}">{{ year }}</option>
       {% endfor %}
     </select>
     <button type="submit" class="btn btn-primary">Update</button>
   </form>
 {% elif period_type == 'quarterly' %}
   <form method="get" action="{{ url_for('financials.financial_overview') }}" class="form-inline mb-3">
-    <input type="hidden" name="period_type" value="quarterly">
+    <input type="hidden" name="period_type" id="periodTypeInput" value="quarterly">
     <label class="mr-2" for="year">Select Year:</label>
-    <select name="year" class="form-control mr-2">
+    <select name="year" id="selectedYear" class="form-control mr-2">
       {% for year in allowed_years %}
-        <option value="{{ year }}" {% if session.get('overview_selected_year', today.year)|int == year %}selected{% endif %}>{{ year }}</option>
+        <option value="{{ year }}">{{ year }}</option>
       {% endfor %}
     </select>
     <button type="submit" class="btn btn-primary">Update</button>
@@ -64,6 +71,82 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    var savedPeriodType = localStorage.getItem('financial_period_type') || '{{ period_type }}';
+    setActivePeriodType(savedPeriodType);
+
+    if(savedPeriodType === 'yearly'){
+        var savedStartYear = localStorage.getItem('financial_start_year') || '{{ today.year }}';
+        var savedEndYear = localStorage.getItem('financial_end_year') || '{{ today.year }}';
+        document.getElementById('startYear').value = savedStartYear;
+        document.getElementById('endYear').value = savedEndYear;
+    } else if(savedPeriodType === 'quarterly'){
+        var savedSelectedYear = localStorage.getItem('financial_selected_year') || '{{ today.year }}';
+        document.getElementById('selectedYear').value = savedSelectedYear;
+    }
+
+    document.getElementById('btnYearly').addEventListener('click', function(){
+        localStorage.setItem('financial_period_type', 'yearly');
+        updatePeriodType('yearly');
+    });
+    document.getElementById('btnQuarterly').addEventListener('click', function(){
+        localStorage.setItem('financial_period_type', 'quarterly');
+        updatePeriodType('quarterly');
+    });
+
+    var startYearSelect = document.getElementById('startYear');
+    if(startYearSelect){
+        startYearSelect.addEventListener('change', function(){
+            localStorage.setItem('financial_start_year', this.value);
+        });
+    }
+    var endYearSelect = document.getElementById('endYear');
+    if(endYearSelect){
+        endYearSelect.addEventListener('change', function(){
+            localStorage.setItem('financial_end_year', this.value);
+        });
+    }
+    var selectedYearSelect = document.getElementById('selectedYear');
+    if(selectedYearSelect){
+        selectedYearSelect.addEventListener('change', function(){
+            localStorage.setItem('financial_selected_year', this.value);
+        });
+    }
+});
+
+function updatePeriodType(type) {
+    document.getElementById('periodTypeInput').value = type;
+    var newUrl = updateQueryStringParameter(window.location.href, 'period_type', type);
+    window.location.href = newUrl;
+}
+
+function setActivePeriodType(type) {
+    if(type === 'yearly'){
+        document.getElementById('btnYearly').classList.add('btn-primary');
+        document.getElementById('btnYearly').classList.remove('btn-secondary');
+        document.getElementById('btnQuarterly').classList.add('btn-secondary');
+        document.getElementById('btnQuarterly').classList.remove('btn-primary');
+    } else {
+        document.getElementById('btnQuarterly').classList.add('btn-primary');
+        document.getElementById('btnQuarterly').classList.remove('btn-secondary');
+        document.getElementById('btnYearly').classList.add('btn-secondary');
+        document.getElementById('btnYearly').classList.remove('btn-primary');
+    }
+    document.getElementById('displayPeriodType').innerText = type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function updateQueryStringParameter(uri, key, value) {
+    var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
+    var separator = uri.indexOf('?') !== -1 ? "&" : "?";
+    if (uri.match(re)) {
+        return uri.replace(re, '$1' + key + "=" + value + '$2');
+    } else {
+        return uri + separator + key + "=" + value;
+    }
+}
+</script>
+
 <script>
 var ctxLine = document.getElementById('overviewLineChart').getContext('2d');
 var overviewLineChart = new Chart(ctxLine, {

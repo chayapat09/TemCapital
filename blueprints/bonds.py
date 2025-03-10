@@ -1,6 +1,5 @@
-# blueprints/bonds.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from flask_login import login_required
+from flask_login import login_required, current_user
 from models import db, Bond
 from datetime import datetime
 from helpers import log_activity
@@ -10,7 +9,7 @@ bonds_bp = Blueprint('bonds', __name__)
 @bonds_bp.route('/bonds', methods=['GET'])
 @login_required
 def bonds():
-    bonds = Bond.query.order_by(Bond.maturity_date).all()
+    bonds = Bond.query.filter_by(user_id=current_user.id).order_by(Bond.maturity_date).all()
     return render_template('bonds.html', bonds=bonds)
 
 @bonds_bp.route('/bond/add', methods=['GET', 'POST'])
@@ -42,7 +41,8 @@ def add_bond():
             maturity_date=maturity_date,
             purchase_date=purchase_date,
             quantity=quantity,
-            cost_basis=transaction_price
+            cost_basis=transaction_price,
+            user_id=current_user.id
         )
         db.session.add(bond)
         db.session.commit()
@@ -54,7 +54,7 @@ def add_bond():
 @bonds_bp.route('/bond/edit/<int:bond_id>', methods=['GET', 'POST'])
 @login_required
 def edit_bond(bond_id):
-    bond = Bond.query.get_or_404(bond_id)
+    bond = Bond.query.filter_by(id=bond_id, user_id=current_user.id).first_or_404()
     if request.method == 'POST':
         bond.name = request.form.get('name')
         try:
@@ -83,7 +83,7 @@ def edit_bond(bond_id):
 @bonds_bp.route('/bond/delete/<int:bond_id>', methods=['POST'])
 @login_required
 def delete_bond(bond_id):
-    bond = Bond.query.get_or_404(bond_id)
+    bond = Bond.query.filter_by(id=bond_id, user_id=current_user.id).first_or_404()
     db.session.delete(bond)
     db.session.commit()
     log_activity("Bond Deleted", f"Bond ID {bond_id} deleted.")

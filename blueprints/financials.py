@@ -1,9 +1,17 @@
-# blueprints/financials.py
 from flask import Blueprint, render_template, request, flash, session
-from flask_login import login_required
+from flask_login import login_required, current_user
 from models import db, Investment, Transaction, CashAccount, CashTransaction, Bond, Dividend
 from datetime import datetime, date
-from helpers import convert_currency, get_price, calculate_cash_balance_as_of, get_periods, log_activity, recalc_investment
+from helpers import (
+    convert_currency, 
+    get_price, 
+    calculate_cash_balance_as_of, 
+    get_periods,
+    log_activity, 
+    get_investment_quote_currency, 
+    compute_user_investment, 
+    compute_realized_gain
+)
 
 financials_bp = Blueprint('financials', __name__)
 
@@ -12,9 +20,9 @@ financials_bp = Blueprint('financials', __name__)
 def summary():
     selected_currency = request.args.get('currency', 'USD')
     investments = Investment.query.all()
-    for inv in investments:
-        inv.current_price = get_price(inv.symbol)
-    txns = Transaction.query.order_by(Transaction.date).all()
+    
+    # Determine timeline based on user transactions
+    txns = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.date).all()
     if txns:
         first_date = txns[0].date
         start_date = first_date if isinstance(first_date, date) else first_date.date()
@@ -40,34 +48,15 @@ def summary():
         total_asset_value = 0
         total_cost_basis = 0
         for inv in investments:
-            inv_txns = [t for t in inv.transactions if t.date < next_month]
-            if not inv_txns:
+            shares, avg_cost = compute_user_investment(inv, current_user.id)
+            if shares == 0:
                 continue
-            shares = 0
-            avg = 0
-            for t in sorted(inv_txns, key=lambda t: t.date):
-                if t.transaction_type.lower() == 'buy':
-                    if shares == 0:
-                        shares = t.quantity
-                        avg = t.transaction_price
-                    else:
-                        new_total = shares + t.quantity
-                        new_total_cost = avg * shares + t.transaction_price * t.quantity
-                        avg = new_total_cost / new_total
-                        shares = new_total
-                elif t.transaction_type.lower() == 'sell':
-                    if shares >= t.quantity:
-                        shares -= t.quantity
-                        if shares == 0:
-                            avg = 0
-                    else:
-                        shares = 0
-                        avg = 0
             price = get_price(inv.symbol)
             asset_value = shares * price
-            cost_basis_total = shares * avg
-            asset_value_conv = convert_currency(asset_value, inv.currency, selected_currency)
-            cost_conv = convert_currency(cost_basis_total, inv.currency, selected_currency)
+            cost_basis_total = shares * avg_cost
+            inv_currency = get_investment_quote_currency(inv, current_user.id)
+            asset_value_conv = convert_currency(asset_value, inv_currency, selected_currency)
+            cost_conv = convert_currency(cost_basis_total, inv_currency, selected_currency)
             total_asset_value += asset_value_conv
             total_cost_basis += cost_conv
         profit_loss = total_asset_value - total_cost_basis
@@ -80,11 +69,15 @@ def summary():
     
     category_data = {}
     for inv in investments:
+        shares, avg_cost = compute_user_investment(inv, current_user.id)
+        if shares == 0:
+            continue
         price = get_price(inv.symbol)
-        asset_value = inv.total_equity * price
-        total_cost = inv.total_equity * inv.cost_basis
-        asset_value_conv = convert_currency(asset_value, inv.currency, selected_currency)
-        cost_conv = convert_currency(total_cost, inv.currency, selected_currency)
+        asset_value = shares * price
+        total_cost = shares * avg_cost
+        inv_currency = get_investment_quote_currency(inv, current_user.id)
+        asset_value_conv = convert_currency(asset_value, inv_currency, selected_currency)
+        cost_conv = convert_currency(total_cost, inv_currency, selected_currency)
         cat = inv.asset_class
         if cat in category_data:
             category_data[cat]['asset_value'] += asset_value_conv
@@ -118,32 +111,14 @@ def balance_sheet():
     equity_values = []
 
     for label, start_date, end_date in periods:
-        cash = sum(calculate_cash_balance_as_of(acc, end_date) for acc in CashAccount.query.all())
+        cash = sum(calculate_cash_balance_as_of(acc, end_date) for acc in CashAccount.query.filter_by(user_id=current_user.id).all())
         inv_val = 0
         for inv in Investment.query.all():
-            txns = [t for t in inv.transactions if t.date <= end_date]
-            shares = 0
-            avg = 0
-            for t in sorted(txns, key=lambda t: t.date):
-                if t.transaction_type.lower() == 'buy':
-                    if shares == 0:
-                        shares = t.quantity
-                        avg = t.transaction_price
-                    else:
-                        new_total = shares + t.quantity
-                        new_total_cost = avg * shares + t.transaction_price * t.quantity
-                        avg = new_total_cost / new_total
-                        shares = new_total
-                elif t.transaction_type.lower() == 'sell':
-                    shares -= t.quantity
-                    if shares <= 0:
-                        shares = 0
-                        avg = 0
+            shares, avg = compute_user_investment(inv, current_user.id)
             price = get_price(inv.symbol)
             asset_value = shares * price
-            inv_val += convert_currency(asset_value, inv.currency, 'USD')
-        
-        bonds_list = Bond.query.filter(Bond.purchase_date <= end_date).all()
+            inv_val += convert_currency(asset_value, get_investment_quote_currency(inv, current_user.id), 'USD')
+        bonds_list = Bond.query.filter(Bond.purchase_date <= end_date, Bond.user_id==current_user.id).all()
         bond_val = sum(bond.quantity * bond.face_value for bond in bonds_list)
         total = cash + inv_val + bond_val
         
@@ -176,9 +151,13 @@ def income_statement():
     net_income_list = []
 
     for label, start_date, end_date in periods:
-        dividends = Dividend.query.filter(Dividend.date >= start_date, Dividend.date <= end_date).all()
+        dividends = Dividend.query.filter(Dividend.date >= start_date, Dividend.date <= end_date, Dividend.user_id==current_user.id).all()
         total_dividends = sum(d.amount for d in dividends)
+        
         realized_gain = 0
+        for inv in Investment.query.all():
+            realized_gain += compute_realized_gain(inv, current_user.id, start_date, end_date)
+        
         total_revenue = total_dividends + realized_gain
         total_expenses = 0
         net_income = total_revenue - total_expenses
@@ -258,10 +237,14 @@ def financial_overview():
             comp_total_asset = 0
             comp_total_cost = 0
             for inv in Investment.query.all():
-                txns = [t for t in inv.transactions if t.date <= date(year, 12, 31)]
+                txns = Transaction.query.filter(
+                    Transaction.investment_id == inv.id,
+                    Transaction.user_id == current_user.id,
+                    Transaction.date <= datetime(year, 12, 31)
+                ).order_by(Transaction.date).all()
                 shares = 0
                 avg = 0
-                for t in sorted(txns, key=lambda t: t.date):
+                for t in txns:
                     if t.transaction_type.lower() == 'buy':
                         if shares == 0:
                             shares = t.quantity
@@ -277,8 +260,8 @@ def financial_overview():
                             shares = 0
                             avg = 0
                 price = get_price(inv.symbol)
-                comp_total_asset += convert_currency(shares * price, inv.currency, 'USD')
-                comp_total_cost += convert_currency(shares * avg, inv.currency, 'USD')
+                comp_total_asset += convert_currency(shares * price, get_investment_quote_currency(inv, current_user.id), 'USD')
+                comp_total_cost += convert_currency(shares * avg, get_investment_quote_currency(inv, current_user.id), 'USD')
             profit_loss = comp_total_asset - comp_total_cost
             overview_data.append({
                 'period': str(year),
@@ -303,10 +286,14 @@ def financial_overview():
             comp_total_asset = 0
             comp_total_cost = 0
             for inv in Investment.query.all():
-                txns = [t for t in inv.transactions if t.date <= comp_end]
+                txns = Transaction.query.filter(
+                    Transaction.investment_id == inv.id,
+                    Transaction.user_id == current_user.id,
+                    Transaction.date <= datetime(selected_year, comp_end.month, comp_end.day)
+                ).order_by(Transaction.date).all()
                 shares = 0
                 avg = 0
-                for t in sorted(txns, key=lambda t: t.date):
+                for t in txns:
                     if t.transaction_type.lower() == 'buy':
                         if shares == 0:
                             shares = t.quantity
@@ -322,8 +309,8 @@ def financial_overview():
                             shares = 0
                             avg = 0
                 price = get_price(inv.symbol)
-                comp_total_asset += convert_currency(shares * price, inv.currency, 'USD')
-                comp_total_cost += convert_currency(shares * avg, inv.currency, 'USD')
+                comp_total_asset += convert_currency(shares * price, get_investment_quote_currency(inv, current_user.id), 'USD')
+                comp_total_cost += convert_currency(shares * avg, get_investment_quote_currency(inv, current_user.id), 'USD')
             profit_loss = comp_total_asset - comp_total_cost
             overview_data.append({
                 'period': f"{selected_year}-{q}",

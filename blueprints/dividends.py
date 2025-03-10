@@ -1,6 +1,5 @@
-# blueprints/dividends.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from flask_login import login_required
+from flask_login import login_required, current_user
 from models import db, Dividend, Investment
 from datetime import datetime
 from helpers import log_activity
@@ -10,14 +9,14 @@ dividends_bp = Blueprint('dividends', __name__)
 @dividends_bp.route('/dividends', methods=['GET'])
 @login_required
 def dividends():
-    dividends = Dividend.query.order_by(Dividend.date.desc()).all()
-    investments = Investment.query.filter(Investment.asset_class=='Stock').all()
+    dividends = Dividend.query.filter_by(user_id=current_user.id).order_by(Dividend.date.desc()).all()
+    investments = Investment.query.all()  # global investments
     return render_template('dividends.html', dividends=dividends, investments=investments)
 
 @dividends_bp.route('/dividend/add', methods=['GET', 'POST'])
 @login_required
 def add_dividend():
-    investments = Investment.query.filter(Investment.asset_class=='Stock').all()
+    investments = Investment.query.all()  # global investments
     if request.method == 'POST':
         try:
             investment_id = int(request.form.get('investment_id'))
@@ -34,7 +33,7 @@ def add_dividend():
             flash("Invalid date format. Please use YYYY-MM-DD.", "danger")
             return redirect(url_for('dividends.add_dividend'))
         note = request.form.get('note')
-        dividend = Dividend(investment_id=investment_id, date=date_div, amount=amount, note=note)
+        dividend = Dividend(investment_id=investment_id, date=date_div, amount=amount, note=note, user_id=current_user.id)
         db.session.add(dividend)
         db.session.commit()
         log_activity("Dividend Added", f"Dividend for investment ID {investment_id} added.")
@@ -45,8 +44,8 @@ def add_dividend():
 @dividends_bp.route('/dividend/edit/<int:dividend_id>', methods=['GET', 'POST'])
 @login_required
 def edit_dividend(dividend_id):
-    dividend = Dividend.query.get_or_404(dividend_id)
-    investments = Investment.query.filter(Investment.asset_class=='Stock').all()
+    dividend = Dividend.query.filter_by(id=dividend_id, user_id=current_user.id).first_or_404()
+    investments = Investment.query.all()  # global investments
     if request.method == 'POST':
         try:
             dividend.investment_id = int(request.form.get('investment_id'))
@@ -72,7 +71,7 @@ def edit_dividend(dividend_id):
 @dividends_bp.route('/dividend/delete/<int:dividend_id>', methods=['POST'])
 @login_required
 def delete_dividend(dividend_id):
-    dividend = Dividend.query.get_or_404(dividend_id)
+    dividend = Dividend.query.filter_by(id=dividend_id, user_id=current_user.id).first_or_404()
     db.session.delete(dividend)
     db.session.commit()
     log_activity("Dividend Deleted", f"Dividend ID {dividend_id} deleted.")

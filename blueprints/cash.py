@@ -1,6 +1,5 @@
-# blueprints/cash.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from flask_login import login_required
+from flask_login import login_required, current_user
 from models import db, CashAccount, CashTransaction
 from datetime import datetime
 from helpers import log_activity
@@ -10,7 +9,7 @@ cash_bp = Blueprint('cash', __name__)
 @cash_bp.route('/cash', methods=['GET'])
 @login_required
 def cash_list():
-    accounts = CashAccount.query.all()
+    accounts = CashAccount.query.filter_by(user_id=current_user.id).all()
     cash_txns = CashTransaction.query.order_by(CashTransaction.date.desc()).all()
     return render_template('cash.html', cash_accounts=accounts, cash_transactions=cash_txns)
 
@@ -28,7 +27,7 @@ def add_cash():
         if balance < 0:
             flash("Balance cannot be negative", "danger")
             return redirect(url_for('cash.add_cash'))
-        new_acc = CashAccount(account_name=account_name, currency=currency, balance=balance)
+        new_acc = CashAccount(account_name=account_name, currency=currency, balance=balance, user_id=current_user.id)
         db.session.add(new_acc)
         db.session.commit()
         ct = CashTransaction(
@@ -47,7 +46,7 @@ def add_cash():
 @cash_bp.route('/cash/edit/<int:cash_id>', methods=['GET', 'POST'])
 @login_required
 def edit_cash(cash_id):
-    acc = CashAccount.query.get_or_404(cash_id)
+    acc = CashAccount.query.filter_by(id=cash_id, user_id=current_user.id).first_or_404()
     if request.method == 'POST':
         acc.account_name = request.form.get('account_name')
         acc.currency = request.form.get('currency')
@@ -69,7 +68,7 @@ def edit_cash(cash_id):
 @cash_bp.route('/cash/delete/<int:cash_id>', methods=['POST'])
 @login_required
 def delete_cash(cash_id):
-    acc = CashAccount.query.get_or_404(cash_id)
+    acc = CashAccount.query.filter_by(id=cash_id, user_id=current_user.id).first_or_404()
     db.session.delete(acc)
     db.session.commit()
     log_activity("Cash Account Deleted", f"Cash account ID {cash_id} deleted.")
@@ -79,7 +78,7 @@ def delete_cash(cash_id):
 @cash_bp.route('/cash/deposit/<int:cash_id>', methods=['GET', 'POST'])
 @login_required
 def deposit_cash(cash_id):
-    acc = CashAccount.query.get_or_404(cash_id)
+    acc = CashAccount.query.filter_by(id=cash_id, user_id=current_user.id).first_or_404()
     if request.method == 'POST':
         try:
             amount = float(request.form.get('amount'))
@@ -106,7 +105,7 @@ def deposit_cash(cash_id):
 @cash_bp.route('/cash/withdraw/<int:cash_id>', methods=['GET', 'POST'])
 @login_required
 def withdraw_cash(cash_id):
-    acc = CashAccount.query.get_or_404(cash_id)
+    acc = CashAccount.query.filter_by(id=cash_id, user_id=current_user.id).first_or_404()
     if request.method == 'POST':
         try:
             amount = float(request.form.get('amount'))
@@ -136,8 +135,8 @@ def withdraw_cash(cash_id):
 @cash_bp.route('/cash/convert/<int:from_id>', methods=['GET', 'POST'])
 @login_required
 def convert_cash(from_id):
-    from_acc = CashAccount.query.get_or_404(from_id)
-    accounts = CashAccount.query.filter(CashAccount.id != from_id).all()
+    from_acc = CashAccount.query.filter_by(id=from_id, user_id=current_user.id).first_or_404()
+    accounts = CashAccount.query.filter(CashAccount.id != from_id, CashAccount.user_id == current_user.id).all()
     if request.method == 'POST':
         try:
             to_id = int(request.form.get('to_account_id'))
@@ -149,7 +148,7 @@ def convert_cash(from_id):
         if amount < 0 or conversion_rate < 0:
             flash("Amount and conversion rate must be non-negative", "danger")
             return redirect(url_for('cash.convert_cash', from_id=from_id))
-        to_acc = CashAccount.query.get_or_404(to_id)
+        to_acc = CashAccount.query.filter_by(id=to_id, user_id=current_user.id).first_or_404()
         if from_acc.balance < amount:
             flash('Insufficient funds in source account!', 'danger')
             return redirect(url_for('cash.convert_cash', from_id=from_id))

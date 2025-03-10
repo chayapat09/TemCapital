@@ -1,8 +1,7 @@
-# blueprints/investments.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash, Response
 from flask_login import login_required, current_user
 from models import db, Investment, Transaction, CashAccount, CashTransaction, Bond, Dividend
-from helpers import get_price, recalc_investment, log_activity, convert_currency
+from helpers import get_price, compute_user_investment, log_activity, convert_currency, get_investment_quote_currency
 from datetime import datetime
 from sqlalchemy import or_
 
@@ -11,13 +10,20 @@ investments_bp = Blueprint('investments', __name__)
 @investments_bp.route('/')
 @login_required
 def dashboard():
+    # Get all global investments
     investments = Investment.query.all()
+    # For each investment, compute user's holdings
     for inv in investments:
+        shares, avg_cost = compute_user_investment(inv, current_user.id)
+        inv.user_shares = shares
+        inv.user_avg_cost = avg_cost
         inv.current_price = get_price(inv.symbol)
-    total_investment = sum(inv.total_value for inv in investments)
-    cash_accounts = CashAccount.query.all()
+        inv.user_total_value = shares * inv.current_price
+        inv.user_profit_loss = (inv.current_price - avg_cost) * shares
+    total_investment = sum(inv.user_total_value for inv in investments)
+    cash_accounts = CashAccount.query.filter_by(user_id=current_user.id).all()
     total_cash = sum(cash.balance for cash in cash_accounts)
-    bonds = Bond.query.all()
+    bonds = Bond.query.filter_by(user_id=current_user.id).all()
     total_bonds = sum(bond.total_value for bond in bonds)
     net_worth = total_investment + total_cash + total_bonds
     return render_template('dashboard.html', investments=investments,
@@ -26,34 +32,31 @@ def dashboard():
 @investments_bp.route('/transaction', methods=['GET', 'POST'])
 @login_required
 def transaction():
-    investments = Investment.query.all()
-    cash_accounts = CashAccount.query.all()
+    investments = Investment.query.all()  # global investments
+    cash_accounts = CashAccount.query.filter_by(user_id=current_user.id).all()
     if request.method == 'POST':
         is_new_investment = request.form.get('is_new_investment')
         if is_new_investment == 'on':
             new_symbol = request.form.get('new_symbol')
             new_description = request.form.get('new_description')
             new_asset_class = request.form.get('new_asset_class')
-            new_currency = request.form.get('new_currency')
-            new_wallet_address = request.form.get('new_wallet_address')  # For crypto
+            new_currency = request.form.get('new_currency')  # used for quote_currency in transaction
+            new_wallet_address = request.form.get('new_wallet_address')
             new_investment = Investment(
                 symbol=new_symbol,
                 description=new_description,
                 asset_class=new_asset_class,
-                currency=new_currency,
-                total_equity=0,
-                cost_basis=0,
-                current_price=get_price(new_symbol),
                 wallet_address=new_wallet_address
             )
             db.session.add(new_investment)
             db.session.commit()
             log_activity("New Investment Added", f"Investment {new_symbol} added.")
             investment_id = new_investment.id
+            quote_currency = new_currency
         else:
             inv_id = request.form.get('investment_id')
             investment_id = int(inv_id) if inv_id and inv_id != 'None' else None
-
+            quote_currency = None
         transaction_date = request.form.get('date')
         transaction_type = request.form.get('transaction_type')
         try:
@@ -74,30 +77,19 @@ def transaction():
             flash("Invalid date format. Please use YYYY-MM-DD.", "danger")
             return redirect(url_for('investments.transaction'))
 
-        if investment_id:
-            inv = Investment.query.get(investment_id)
-            if cash_account_id:
-                cash_acc = CashAccount.query.get(int(cash_account_id))
-                if cash_acc.currency != inv.currency:
-                    flash(f"Error: Investment currency ({inv.currency}) does not match cash account currency ({cash_acc.currency}).", "danger")
-                    return redirect(url_for('investments.transaction'))
         new_txn = Transaction(
             investment_id=investment_id,
+            user_id=current_user.id,
             date=date_obj,
             transaction_type=transaction_type,
             transaction_price=transaction_price,
             quantity=quantity,
             broker_note=broker_note
         )
-        db.session.add(new_txn)
-        db.session.flush()
-
-        if investment_id:
-            inv = Investment.query.get(investment_id)
-            recalc_investment(inv)
-
         if cash_account_id:
-            cash_acc = CashAccount.query.get(int(cash_account_id))
+            cash_acc = CashAccount.query.filter_by(id=int(cash_account_id), user_id=current_user.id).first()
+            if not quote_currency:
+                quote_currency = cash_acc.currency
             amount = transaction_price * quantity
             if transaction_type.lower() == 'buy':
                 cash_acc.balance -= amount
@@ -113,6 +105,8 @@ def transaction():
                 amount=amount
             )
             db.session.add(ct)
+        new_txn.quote_currency = quote_currency if quote_currency else 'USD'
+        db.session.add(new_txn)
         db.session.commit()
         log_activity("Transaction Recorded", f"Transaction for investment ID {investment_id} recorded.")
         flash('Transaction recorded successfully!', 'success')
@@ -124,20 +118,23 @@ def transaction():
 def transactions():
     search_query = request.args.get('search', '')
     if search_query:
-        txns = Transaction.query.join(Investment, isouter=True).filter(
+        txns = Transaction.query.filter(
+            Transaction.user_id == current_user.id,
             or_(Investment.symbol.ilike(f"%{search_query}%"),
                 Transaction.broker_note.ilike(f"%{search_query}%"))
         ).order_by(Transaction.date.desc()).all()
     else:
-        txns = Transaction.query.order_by(Transaction.date.desc()).all()
+        txns = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.date.desc()).all()
     return render_template('transactions.html', transactions=txns, search=search_query)
 
 @investments_bp.route('/transaction/edit/<int:transaction_id>', methods=['GET', 'POST'])
 @login_required
 def edit_transaction(transaction_id):
     txn = Transaction.query.get_or_404(transaction_id)
+    if txn.user_id != current_user.id:
+        flash("Unauthorized access", "danger")
+        return redirect(url_for('investments.dashboard'))
     investments = Investment.query.all()
-    old_investment_id = txn.investment_id
     if request.method == 'POST':
         try:
             txn_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
@@ -161,16 +158,6 @@ def edit_transaction(transaction_id):
         inv_id = request.form.get('investment_id')
         txn.investment_id = int(inv_id) if inv_id and inv_id != 'None' else None
         db.session.commit()
-
-        if old_investment_id:
-            old_inv = Investment.query.get(old_investment_id)
-            if old_inv:
-                recalc_investment(old_inv)
-        if txn.investment_id:
-            new_inv = Investment.query.get(txn.investment_id)
-            if new_inv:
-                recalc_investment(new_inv)
-
         log_activity("Transaction Edited", f"Transaction ID {transaction_id} edited.")
         flash('Transaction updated successfully!', 'success')
         return redirect(url_for('investments.transactions'))
@@ -180,13 +167,11 @@ def edit_transaction(transaction_id):
 @login_required
 def delete_transaction(transaction_id):
     txn = Transaction.query.get_or_404(transaction_id)
-    investment_id = txn.investment_id
+    if txn.user_id != current_user.id:
+        flash("Unauthorized access", "danger")
+        return redirect(url_for('investments.dashboard'))
     db.session.delete(txn)
     db.session.commit()
-    if investment_id:
-        inv = Investment.query.get(investment_id)
-        if inv:
-            recalc_investment(inv)
     log_activity("Transaction Deleted", f"Transaction ID {transaction_id} deleted.")
     flash('Transaction deleted successfully!', 'success')
     return redirect(url_for('investments.transactions'))
@@ -194,15 +179,15 @@ def delete_transaction(transaction_id):
 @investments_bp.route('/report')
 @login_required
 def report():
-    transactions = Transaction.query.order_by(Transaction.date).all()
+    txns = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.date).all()
     import csv, io
     si = io.StringIO()
     cw = csv.writer(si)
-    cw.writerow(['Date', 'Investment', 'Type', 'Price', 'Quantity', 'Broker Note'])
-    for t in transactions:
-        inv = Investment.query.get(t.investment_id) if t.investment_id else None
+    cw.writerow(['Date', 'Investment', 'Type', 'Price', 'Quantity', 'Broker Note', 'Quote Currency'])
+    for t in txns:
+        inv = Investment.query.filter_by(id=t.investment_id).first() if t.investment_id else None
         symbol = inv.symbol if inv else 'N/A'
-        cw.writerow([t.date, symbol, t.transaction_type, t.transaction_price, t.quantity, t.broker_note])
+        cw.writerow([t.date, symbol, t.transaction_type, t.transaction_price, t.quantity, t.broker_note, t.quote_currency])
     output = si.getvalue()
     return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=transactions.csv"})
 
@@ -212,7 +197,9 @@ def risk():
     investments = Investment.query.all()
     category_totals = {}
     for inv in investments:
-        asset_value = inv.total_value
+        shares, _ = compute_user_investment(inv, current_user.id)
+        price = get_price(inv.symbol)
+        asset_value = shares * price
         cat = inv.asset_class
         category_totals[cat] = category_totals.get(cat, 0) + asset_value
     total_investment = sum(category_totals.values())

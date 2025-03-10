@@ -1,9 +1,7 @@
-# helpers.py
 from datetime import datetime, date, timedelta
-from models import Investment, CashTransaction, CashAccount, Bond, Dividend, ActivityLog, db
+from models import Investment, CashTransaction, CashAccount, Bond, Dividend, ActivityLog, db, Transaction
 from flask_login import current_user
 
-# Centralized Price Data Functions (Mocked)
 def get_price(symbol):
     # Returns a dummy price based on the symbol hash (for demo purposes)
     return round(50 + (hash(symbol) % 100) * 0.1, 2)
@@ -23,7 +21,6 @@ def get_history_price(symbol, start_date, end_date):
         current += timedelta(days=1)
     return history
 
-# Currency conversion rates (stub)
 conversion_rates = {
     ('USD', 'THB'): 34.0,
     ('USD', 'SGD'): 1.35,
@@ -40,36 +37,67 @@ def convert_currency(amount, from_currency, to_currency):
     if rate:
         return amount * rate
     else:
-        return amount  # Fallback if conversion rate not found
+        return amount
 
-# Recalculation helper function for an investment
-def recalc_investment(investment):
-    transactions = sorted(investment.transactions, key=lambda t: t.date)
-    shares = 0
-    avg = 0
-    for t in transactions:
+def compute_user_investment(investment, user_id):
+    """
+    Compute the user's holding for a given investment using FIFO method.
+    Returns (total_shares, average_cost).
+    """
+    txns = Transaction.query.filter_by(investment_id=investment.id, user_id=user_id).order_by(Transaction.date).all()
+    lots = []
+    for t in txns:
         if t.transaction_type.lower() == 'buy':
-            if shares == 0:
-                shares = t.quantity
-                avg = t.transaction_price
-            else:
-                new_total = shares + t.quantity
-                new_total_cost = avg * shares + t.transaction_price * t.quantity
-                avg = new_total_cost / new_total
-                shares = new_total
+            lots.append({'quantity': t.quantity, 'price': t.transaction_price})
         elif t.transaction_type.lower() == 'sell':
-            if shares >= t.quantity:
-                shares -= t.quantity
-                if shares == 0:
-                    avg = 0
-            else:
-                shares = 0
-                avg = 0
-    investment.total_equity = shares
-    investment.cost_basis = avg
-    investment.current_price = get_price(investment.symbol)
+            qty_to_sell = t.quantity
+            while qty_to_sell > 0 and lots:
+                lot = lots[0]
+                if lot['quantity'] > qty_to_sell:
+                    lot['quantity'] -= qty_to_sell
+                    qty_to_sell = 0
+                else:
+                    qty_to_sell -= lot['quantity']
+                    lots.pop(0)
+    total_shares = sum(lot['quantity'] for lot in lots)
+    total_cost = sum(lot['quantity'] * lot['price'] for lot in lots)
+    avg_cost = total_cost / total_shares if total_shares > 0 else 0
+    return total_shares, avg_cost
 
-# Activity logging helper
+def compute_realized_gain(investment, user_id, start_date, end_date):
+    """
+    Compute the realized gain for an investment for a user using FIFO for transactions within the period.
+    """
+    txns = Transaction.query.filter_by(investment_id=investment.id, user_id=user_id).order_by(Transaction.date).all()
+    lots = []
+    realized_gain = 0
+    for t in txns:
+        if t.transaction_type.lower() == 'buy':
+            lots.append({'quantity': t.quantity, 'price': t.transaction_price})
+        elif t.transaction_type.lower() == 'sell':
+            qty_to_sell = t.quantity
+            if start_date <= t.date.date() <= end_date:
+                while qty_to_sell > 0 and lots:
+                    lot = lots[0]
+                    if lot['quantity'] > qty_to_sell:
+                        realized_gain += qty_to_sell * (t.transaction_price - lot['price'])
+                        lot['quantity'] -= qty_to_sell
+                        qty_to_sell = 0
+                    else:
+                        realized_gain += lot['quantity'] * (t.transaction_price - lot['price'])
+                        qty_to_sell -= lot['quantity']
+                        lots.pop(0)
+            else:
+                while qty_to_sell > 0 and lots:
+                    lot = lots[0]
+                    if lot['quantity'] > qty_to_sell:
+                        lot['quantity'] -= qty_to_sell
+                        qty_to_sell = 0
+                    else:
+                        qty_to_sell -= lot['quantity']
+                        lots.pop(0)
+    return realized_gain
+
 def log_activity(action, details=""):
     user_id = current_user.id if current_user.is_authenticated else None
     log = ActivityLog(user_id=user_id, action=action, details=details)
@@ -175,3 +203,9 @@ def get_periods(period_type, request):
                 e = today
             periods.append((label, s, e))
     return periods
+
+def get_investment_quote_currency(investment, user_id):
+    txns = Transaction.query.filter_by(investment_id=investment.id, user_id=user_id).all()
+    if txns:
+        return txns[0].quote_currency
+    return 'USD'

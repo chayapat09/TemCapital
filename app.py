@@ -1,4 +1,3 @@
-# app.py
 from flask import Flask
 from config import Config
 from models import db, User
@@ -24,8 +23,9 @@ def init_db():
     with app.app_context():
         db.create_all()
         from models import CashAccount
+        # For testing purposes only. In production, each user creates their own account.
         if not CashAccount.query.first():
-            default_account = CashAccount(account_name='Main Account', currency='USD', balance=10000)
+            default_account = CashAccount(account_name='Main Account', currency='USD', balance=10000, user_id=1)
             db.session.add(default_account)
             db.session.commit()
 

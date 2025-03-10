@@ -1,4 +1,3 @@
-# blueprints/__init__.py
 from .auth import auth_bp
 from .investments import investments_bp
 from .cash import cash_bp
